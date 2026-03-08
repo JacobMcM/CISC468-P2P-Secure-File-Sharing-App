@@ -1,15 +1,17 @@
 from zeroconf import ServiceBrowser, ServiceInfo, ServiceListener, Zeroconf, ZeroconfServiceTypes
 import socket
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+JACOBIP = os.getenv('JACOBIP')
 
 zeroconf = Zeroconf()
 
-hostname = socket.gethostname()
-ip = socket.gethostbyname(hostname)
-print(ip)
 info = ServiceInfo(
     "_p2p._tcp.local.",
     "JacobPC._p2p._tcp.local.",
-    addresses=[socket.inet_aton(ip)],
+    addresses=[socket.inet_aton(JACOBIP)], # < My local
     port=5000,
 )
 zeroconf.register_service(info)
@@ -24,7 +26,7 @@ class MyListener(ServiceListener):
 
     def add_service(self, zc: Zeroconf, type_: str, name: str) -> None:
         info = zc.get_service_info(type_, name)
-        print(f"Service {name} added, service info: {info}")
+        print(f"Service {name} added, ip: {socket.inet_ntop(socket.AF_INET, info.addresses[0])}, port: {info.port}")
 
 listener = MyListener()
 browser = ServiceBrowser(zeroconf, "_p2p._tcp.local.", listener)
