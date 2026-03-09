@@ -1,22 +1,31 @@
 #ifndef MDNS_H
 #define MDNS_H
 
-#ifdef _WIN32 // Platform-specific header for network byte order conversion (htons)
-    #include <winsock2.h> // Windows
+#ifdef _WIN32
+    #include <winsock2.h>
 #else
-    #include <arpa/inet.h> // macOS/Linux
+    #include <arpa/inet.h>
 #endif
 
-#include <dns_sd.h> // Bonjour API for mDNS peer discovery
+#include <dns_sd.h>
 #include <string>
+#include <map>
 
-// Register this peer on the network so others can discover us, returns a handle to the active registration
+// Stores info about a discovered peer
+struct Peer {
+    std::string name;
+    std::string ip;
+    uint16_t port;
+};
+
+// All discovered peers, keyed by name
+extern std::map<std::string, Peer> discoveredPeers;
+
 DNSServiceRef registerPeer(const std::string& peerName, uint16_t port);
-
-// Start scanning the network for other peers, returns a handle to the active browsing session
 DNSServiceRef browsePeers();
-
-// Event loop that processes mDNS discovery events, runs forever, checking both handles for activity
 void runMdnsLoop(DNSServiceRef registerRef, DNSServiceRef browseRef);
+
+// Print all currently discovered peers
+void listPeers();
 
 #endif

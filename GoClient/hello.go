@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"log"
@@ -56,17 +55,33 @@ func handleConnection(conn net.Conn) {
 		conn.Close()
 	}()
 
-	scanner := bufio.NewScanner(conn)
-	for scanner.Scan() {
-		text := scanner.Text()
+	buf := make([]byte, 4096)
+	for {
+		n, err := conn.Read(buf)
+		if err != nil {
+			break
+		}
+		text := string(buf[:n])
 		log.Printf("Received from %s: %s\n", conn.RemoteAddr(), text)
 		// Echo back
-		conn.Write([]byte("Echo: " + text + "\n"))
+		conn.Write([]byte("Echo: " + text))
 	}
+}
 
-	if err := scanner.Err(); err != nil {
-		log.Println("Connection error:", err)
+// ------------------------
+// Send hello message to a peer
+// ------------------------
+func sendHello(peer *Peer, message string) {
+	addr := fmt.Sprintf("%s:%d", peer.IP, peer.Port)
+	conn, err := net.DialTimeout("tcp", addr, 3*time.Second)
+	if err != nil {
+		log.Println("Failed to connect to peer", peer.Name, ":", err)
+		return
 	}
+	defer conn.Close()
+
+	conn.Write([]byte(message))
+	log.Printf("Sent hello to %s (%s)\n", peer.Name, addr)
 }
 
 // ------------------------
@@ -108,14 +123,25 @@ func discoverPeers(ctx context.Context, selfName string) {
 			}
 
 			peersMu.Lock()
-			peers[entry.Instance] = &Peer{
-				Name:     entry.Instance,
-				IP:       entry.AddrIPv4[0].String(),
-				Port:     entry.Port,
-				TXT:      entry.Text,
-				LastSeen: time.Now(),
+			if _, exists := peers[entry.Instance]; !exists {
+				// New peer discovered
+				peer := &Peer{
+					Name:     entry.Instance,
+					IP:       entry.AddrIPv4[0].String(),
+					Port:     entry.Port,
+					TXT:      entry.Text,
+					LastSeen: time.Now(),
+				}
+				peers[entry.Instance] = peer
+				peersMu.Unlock()
+
+				// Send hello to new peer
+				go sendHello(peer, "Hello from "+selfName)
+			} else {
+				// Update last seen
+				peers[entry.Instance].LastSeen = time.Now()
+				peersMu.Unlock()
 			}
-			peersMu.Unlock()
 		}
 	}(entries)
 
@@ -149,8 +175,8 @@ func cleanupPeers(ttl time.Duration) {
 // Main
 // ------------------------
 func main() {
-	const tcpPort = 5002
-	const selfName = "Liam-PC"
+	const tcpPort = 5011
+	const selfName = "Liam-PC-CameronMac"
 
 	// Start TCP server
 	go startTCPServer(tcpPort)
