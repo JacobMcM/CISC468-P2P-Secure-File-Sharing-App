@@ -1,0 +1,200 @@
+{
+    "protocol_version": "1.0",
+
+    "message_format": {
+        "description": "Every message sent over TCP must be length-prefixed. The first 4 bytes are the message length as a big-endian unsigned 32-bit integer, followed by the message body as a JSON string.",
+        "wire_format": "[4 bytes: length (big-endian uint32)][JSON body]",
+        "length_prefix": {
+            "size_bytes": 4,
+            "byte_order": "big-endian",
+            "type": "unsigned 32-bit integer"
+        },
+        "body_encoding": "UTF-8 JSON string",
+
+        "how_to_send": {
+            "cpp": "uint32_t length = htonl(message.size()); send(socket, &length, 4, 0); send(socket, message.c_str(), message.size(), 0);",
+            "python": "import struct; sock.sendall(struct.pack('!I', len(msg)) + msg)",
+            "go": "binary.BigEndian.PutUint32(lengthBuf, uint32(len(msg))); conn.Write(lengthBuf); conn.Write(msg)"
+        },
+        "how_to_receive": {
+            "cpp": "recv(socket, &length, 4, 0); length = ntohl(length); recv(socket, buffer, length, 0);",
+            "python": "length = struct.unpack('!I', sock.recv(4))[0]; data = sock.recv(length)",
+            "go": "conn.Read(lengthBuf); length := binary.BigEndian.Uint32(lengthBuf); data := make([]byte, length); conn.Read(data)"
+        }
+    },
+
+    "service_discovery": {
+        "protocol": "mDNS",
+        "service_type": "_p2p._tcp.",
+        "domain": "local."
+    },
+
+    "ports": {
+        "cpp": 5001,
+        "python": 5000,
+        "go": 5002
+    },
+
+    "message_types": {
+        "HANDSHAKE": {
+            "description": "Exchange RSA public keys for mutual authentication. First message sent when two peers connect.",
+            "fields": {
+                "type": "HANDSHAKE",
+                "from": "peer name (string)",
+                "public_key": "PEM-encoded RSA public key (string)"
+            },
+            "example": {
+                "type": "HANDSHAKE",
+                "from": "Cameron Mac",
+                "public_key": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqh...\n-----END PUBLIC KEY-----"
+            }
+        },
+
+        "FILE_LIST_REQUEST": {
+            "description": "Request the list of files a peer has available for sharing. No consent required.",
+            "fields": {
+                "type": "FILE_LIST_REQUEST",
+                "from": "peer name (string)"
+            },
+            "example": {
+                "type": "FILE_LIST_REQUEST",
+                "from": "Cameron Mac"
+            }
+        },
+
+        "FILE_LIST_RESPONSE": {
+            "description": "Response containing available files with SHA-256 hashes and RSA-PSS signatures for offline verification.",
+            "fields": {
+                "type": "FILE_LIST_RESPONSE",
+                "from": "peer name (string)",
+                "files": "array of file objects"
+            },
+            "file_object": {
+                "name": "filename (string)",
+                "size": "file size in bytes (integer)",
+                "hash": "SHA-256 hash of file contents (hex string)",
+                "signature": "RSA-PSS signature of the hash, base64 encoded (string)"
+            },
+            "example": {
+                "type": "FILE_LIST_RESPONSE",
+                "from": "JacobPC",
+                "files": [
+                    {
+                        "name": "notes.pdf",
+                        "size": 102400,
+                        "hash": "a1b2c3d4e5f6...",
+                        "signature": "base64encodedRSAPSSsignature..."
+                    }
+                ]
+            }
+        },
+
+        "FILE_REQUEST": {
+            "description": "Request a specific file from a peer. Requires consent from the peer before transfer.",
+            "fields": {
+                "type": "FILE_REQUEST",
+                "from": "peer name (string)",
+                "filename": "name of the requested file (string)"
+            },
+            "example": {
+                "type": "FILE_REQUEST",
+                "from": "Cameron Mac",
+                "filename": "notes.pdf"
+            }
+        },
+
+        "CONSENT_REQUEST": {
+            "description": "Ask a peer if they accept an incoming file you want to send them.",
+            "fields": {
+                "type": "CONSENT_REQUEST",
+                "from": "peer name (string)",
+                "filename": "name of the file (string)",
+                "filesize": "size in bytes (integer)"
+            },
+            "example": {
+                "type": "CONSENT_REQUEST",
+                "from": "Liam-PC",
+                "filename": "report.docx",
+                "filesize": 52400
+            }
+        },
+
+        "CONSENT_RESPONSE": {
+            "description": "Accept or reject a file transfer or file request.",
+            "fields": {
+                "type": "CONSENT_RESPONSE",
+                "from": "peer name (string)",
+                "filename": "name of the file (string)",
+                "accepted": "true or false (boolean)"
+            },
+            "example": {
+                "type": "CONSENT_RESPONSE",
+                "from": "Cameron Mac",
+                "filename": "report.docx",
+                "accepted": true
+            }
+        },
+
+        "FILE_TRANSFER": {
+            "description": "The actual file data. Sent after consent is received. File data is base64 encoded.",
+            "fields": {
+                "type": "FILE_TRANSFER",
+                "from": "peer name (string)",
+                "filename": "name of the file (string)",
+                "data": "base64 encoded file contents (string)",
+                "hash": "SHA-256 hash of original file contents (hex string)",
+                "signature": "RSA-PSS signature of the hash, base64 encoded (string)"
+            },
+            "example": {
+                "type": "FILE_TRANSFER",
+                "from": "JacobPC",
+                "filename": "notes.pdf",
+                "data": "base64encodedfiledata...",
+                "hash": "a1b2c3d4e5f6...",
+                "signature": "base64encodedRSAPSSsignature..."
+            }
+        },
+
+        "KEY_ROTATION": {
+            "description": "Notify contacts that you have migrated to a new RSA key. Signed with the old key to prove authenticity.",
+            "fields": {
+                "type": "KEY_ROTATION",
+                "from": "peer name (string)",
+                "new_public_key": "PEM-encoded new RSA public key (string)",
+                "signature": "RSA-PSS signature of the new public key, signed with the OLD private key, base64 encoded (string)"
+            },
+            "example": {
+                "type": "KEY_ROTATION",
+                "from": "Cameron Mac",
+                "new_public_key": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqh...\n-----END PUBLIC KEY-----",
+                "signature": "base64signaturewithold key..."
+            }
+        },
+
+        "ERROR": {
+            "description": "Report an error to the peer.",
+            "fields": {
+                "type": "ERROR",
+                "from": "peer name (string)",
+                "message": "error description (string)"
+            },
+            "example": {
+                "type": "ERROR",
+                "from": "Cameron Mac",
+                "message": "File integrity check failed: hash mismatch"
+            }
+        }
+    },
+
+    "crypto": {
+        "key_type": "RSA",
+        "key_size": 2048,
+        "encryption_padding": "OAEP with SHA-256",
+        "signature_scheme": "RSA-PSS with SHA-256",
+        "symmetric_cipher": "AES-256-GCM",
+        "hash_algorithm": "SHA-256",
+        "key_format": "PEM (PKCS#8 for private, SubjectPublicKeyInfo for public)",
+        "perfect_forward_secrecy": "Ephemeral Diffie-Hellman key exchange, signed with RSA",
+        "local_storage_encryption": "AES-256-GCM with key derived from user passphrase via Argon2"
+    }
+}

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"log"
@@ -32,7 +31,7 @@ var (
 // TCP server
 // ------------------------
 func startTCPServer(port int) {
-	listener, err := net.Listen("tcp", fmt.Sprintf("192.168.2.19:%d", port))
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -56,16 +55,16 @@ func handleConnection(conn net.Conn) {
 		conn.Close()
 	}()
 
-	scanner := bufio.NewScanner(conn)
-	for scanner.Scan() {
-		text := scanner.Text()
+	buf := make([]byte, 4096)
+	for {
+		n, err := conn.Read(buf)
+		if err != nil {
+			break
+		}
+		text := string(buf[:n])
 		log.Printf("Received from %s: %s\n", conn.RemoteAddr(), text)
 		// Echo back
-		conn.Write([]byte("Echo: " + text + "\n"))
-	}
-
-	if err := scanner.Err(); err != nil {
-		log.Println("Connection error:", err)
+		conn.Write([]byte("Echo: " + text))
 	}
 }
 
@@ -81,7 +80,7 @@ func sendHello(peer *Peer, message string) {
 	}
 	defer conn.Close()
 
-	fmt.Fprintf(conn, "%s\n", message)
+	conn.Write([]byte(message))
 	log.Printf("Sent hello to %s (%s)\n", peer.Name, addr)
 }
 
@@ -177,7 +176,7 @@ func cleanupPeers(ttl time.Duration) {
 // ------------------------
 func main() {
 	const tcpPort = 5011
-	const selfName = "Liam-PC"
+	const selfName = "Liam-PC-CameronMac"
 
 	// Start TCP server
 	go startTCPServer(tcpPort)
