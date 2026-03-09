@@ -125,8 +125,7 @@ if __name__ == "__main__":
             KILL_THREADS = True
         elif i == "i" or i == "I":
             for s in active_services:
-                print(f"[INFO] {s.name}, ip: {socket.inet_ntop(socket.AF_INET, info.addresses[0])}, port: {info.port}")
-            print(active_services)
+                print(f"[INFO] {active_services[s].name}, ip: {socket.inet_ntop(socket.AF_INET, active_services[s].addresses[0])}, port: {active_services[s].port}")
         else:
             try:
                 info = active_services[i]
