@@ -30,7 +30,10 @@ def advertise_Service():
 
     class MyListener(ServiceListener):
         def update_service(self, zc: Zeroconf, type_: str, name: str) -> None:
-            print(f"[NETWORK] Service {name} updated")
+            info = zc.get_service_info(type_, name)
+            if info:
+                active_services[name] = info
+                print(f"[NETWORK] Service {name} updated")
 
         def remove_service(self, zc: Zeroconf, type_: str, name: str) -> None:
             print(f"[NETWORK] Service {name} removed")
@@ -85,7 +88,12 @@ def start_client(target_host, target_port):
     print("start_client", target_host, target_port)
     client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     print("got_sock")
-    client_sock.connect((target_host, target_port))
+    try:
+        client_sock.connect((target_host, target_port))
+    except Exception as e:
+        client_sock.close()        
+        print(f"[CLIENT] Error: {e}")
+        return
     print(f"[CLIENT] Connected to {target_host}:{target_port}")
     try:
         while True:
@@ -116,6 +124,8 @@ if __name__ == "__main__":
         if i == "x" or i == "X":
             KILL_THREADS = True
         elif i == "i" or i == "I":
+            for s in active_services:
+                print(f"[INFO] {s.name}, ip: {socket.inet_ntop(socket.AF_INET, info.addresses[0])}, port: {info.port}")
             print(active_services)
         else:
             try:
