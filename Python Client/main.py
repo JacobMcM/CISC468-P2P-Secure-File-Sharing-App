@@ -52,11 +52,9 @@ def advertise_Service():
     zeroconf.unregister_service(info)
     zeroconf.close()
 
-
 # -------------------------------
 # Server Part
 # -------------------------------
-
 def start_server():
     server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_sock.bind((HOST, PORT))
@@ -84,7 +82,9 @@ def start_server():
 # Client Part
 # -------------------------------
 def start_client(target_host, target_port):
+    print("start_client", target_host, target_port)
     client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    print("got_sock")
     client_sock.connect((target_host, target_port))
     print(f"[CLIENT] Connected to {target_host}:{target_port}")
     try:
@@ -126,5 +126,8 @@ if __name__ == "__main__":
             
             except:
                 print("problem occured :/\n")
+
+    server.join()
+    mDNS.join()
 
 
