@@ -40,6 +40,20 @@ func RegisterMdnsServer(name string, port int) *zeroconf.Server {
 	}
 
 	log.Printf("Advertising service %s on port %d\n", name, port)
+
+	// REMOVE LATER
+	PeersMu.Lock()
+	peer := &Peer{
+		Name:     "Fake1",
+		IP:       "123.456.78.9",
+		Port:     1000,
+		TXT:      []string{"somefile.txt"},
+		FileList: []string{"somefile.txt", "file2.txt", "file3.txt"},
+		LastSeen: time.Now(),
+	}
+	Peers[peer.Name] = peer;
+	PeersMu.Unlock()
+
 	return server
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"GoClient/crypto"
 	"GoClient/discovery"
 	"GoClient/network"
 	"GoClient/ui"
@@ -12,6 +13,9 @@ import (
 
 
 func main() {
+
+	crypto.Main()
+	select {}
 	const tcpPort = 5011
 	const selfName = "Liam-PC"
 
@@ -30,8 +34,7 @@ func main() {
 	go discovery.StartPeerCleaning(11 * time.Second)
 	// go discovery.StartPeerLogging()
 	discovery.StartHeartbeat(ctx)
-	ui.Start()
-
+	ui.StartShopApp()
 	
 	select {}
 	
