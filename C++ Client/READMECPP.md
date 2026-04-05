@@ -12,19 +12,14 @@
 brew install openssl@3
 ```
 
-### Run (pre-built binary)
-```bash
-cd "C++ Client"
-./p2pclient
-```
-
-### Build from source
+### Build and run
 ```bash
 clang++ -o p2pclient src/main.cpp src/crypto.cpp src/network.cpp src/filemanager.cpp src/mdns.cpp \
   -std=c++17 \
   -I/opt/homebrew/opt/openssl@3/include \
   -L/opt/homebrew/opt/openssl@3/lib \
   -lssl -lcrypto
+./p2pclient
 ```
 
 ## Windows
@@ -33,16 +28,12 @@ clang++ -o p2pclient src/main.cpp src/crypto.cpp src/network.cpp src/filemanager
 1. **OpenSSL 3** — download from https://slproweb.com/products/Win32OpenSSL.html
 2. **Bonjour SDK** — download from https://developer.apple.com/bonjour/ (or install iTunes, which bundles it)
 
-### Build from source
+### Build and run
 ```bash
 g++ -o p2pclient.exe src/main.cpp src/crypto.cpp src/network.cpp src/filemanager.cpp src/mdns.cpp ^
   -std=c++17 ^
   -lssl -lcrypto -ldnssd -lws2_32
-```
-
-### Run
-```bash
-p2pclient.exe
+./p2pclient.exe
 ```
 
 ## Usage
