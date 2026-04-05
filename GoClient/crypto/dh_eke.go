@@ -125,7 +125,7 @@ type Bob struct {
 }
 
 type PakeState struct {
-	w []byte
+	w    []byte
 	a    *big.Int
 	b    *big.Int
 	K    []byte
