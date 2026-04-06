@@ -219,10 +219,12 @@ def establishNthConnection(peer: server.peer, peer_RSA_pub: bytes, client_sock):
     
     # build and encryt our signature
     our_RSA_priv = storage.getPrivRSA()
-    our_signature = util.makeSign(our_RSA_priv, our_message)
-    
+    our_signature = util.makeSign(our_RSA_priv, our_message)    
     encrypted_signature = util.encryptAES(our_signature, K)
-    sts3 = models.buildSTS3(server.localName, encrypted_signature)
+    
+    # build & send sts3
+    sts3 = models.buildSTS3(server.localName, encrypted_signature)  
+    util.TCP_Sender(client_sock, sts3.encode())
 
     return K
 

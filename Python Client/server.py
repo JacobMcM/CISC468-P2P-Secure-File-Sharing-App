@@ -228,6 +228,56 @@ def establishFirstConnection(eke1, sock):
         
     return K
 
+
+def establishNthConnection(sts1, sock):
+    sender = sts1.get("from")
+    if not sender: raise Exception("From is undefiend")
+
+    peer_RSA_pub = storage.getPeerPubRSA(sender)
+    if not peer_RSA_pub: raise Exception("RSA public key not found for peer " + sender)
+
+    # extract shared peer dh_public_key
+    shared_key = sts1.get("dh_public_key")
+    if shared_key == None: raise Exception("DH Public Key is undefined")
+    shared_key_bytes = util.b64ToBytes(shared_key)
+
+    # Generate DH key pair
+    priv_key, pub_key = util.genDHKeyPair()
+    pub_key_bytes = pub_key.to_bytes((pub_key.bit_length() + 7) // 8, byteorder='big')
+    
+    # establish shared key K
+    K = util.deriveK(shared_key_bytes, priv_key)
+
+    # build message we will sign
+    our_message = pub_key_bytes + shared_key_bytes
+
+    # build and encryt our signature
+    our_RSA_priv = storage.getPrivRSA()
+    our_signature = util.makeSign(our_RSA_priv, our_message)
+    encrypted_signature = util.encryptAES(our_signature, K)
+
+    # build & send sts2
+    sts2 = models.buildSTS2(localName, pub_key_bytes, encrypted_signature)
+    util.TCP_Sender(sock, sts2.encode())
+
+    # await and recieve sts3
+    sts3 = {}
+    sts3 = util.TCP_Reciever(sock)
+    print(sts3)
+    if sts3.get("type") != "STS_3": raise Exception("Expected STS_3")
+    if sts3.get("from") != peer.name: raise Exception("Expected different STS_3 sender")
+
+    # build signed message we expect to recieve
+    peer_message = shared_key_bytes + pub_key_bytes
+
+    # extract peer signature
+    peer_signature = models.getEncryptedProp(sts3, "encrypted_signature", K)
+    
+    # verify signature - Throws error on failure
+    util.verifySign(peer_RSA_pub, peer_signature, peer_message)
+
+    return K
+ 
 def kill_threads():
     global KILL_THREADS
     KILL_THREADS = True

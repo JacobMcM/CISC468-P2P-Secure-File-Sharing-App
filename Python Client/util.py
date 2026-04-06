@@ -8,7 +8,7 @@ import base64
 import random
 
 
-def deriveK(shared_key_bytes, priv_key_int):
+def deriveK(shared_key_bytes:bytes, priv_key_int:int):
     shared_key_int = int.from_bytes(shared_key_bytes, byteorder='big')
     K_int = pow(shared_key_int, priv_key_int, prime)
     return K_int.to_bytes((K_int.bit_length() + 7) // 8, byteorder='big')
