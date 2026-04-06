@@ -37,16 +37,20 @@ def buildEKE4(sender: str, c5_bytes: bytes):
 
 # --- STS messages ---
 
-def buildSTS1(sender, dhPublicKey):
-    sts1 = {"type":"STS_1", "from":sender,"dh_public_key":dhPublicKey}
+def buildSTS1(sender, dhPublicKey: bytes):
+    dh_public_key = util.bytesToB64(dhPublicKey)
+    sts1 = {"type":"STS_1", "from":sender,"dh_public_key":dh_public_key}
     return json.dumps(sts1)
 
-def buildSTS2(sender, dhPublicKey, encryptedSignature):
-    sts2 = {"type":"STS_2", "from":sender,"dh_public_key":dhPublicKey, "encrypted_signature":encryptedSignature}
+def buildSTS2(sender, dhPublicKey: bytes, encryptedSignature: bytes):
+    dh_public_key = util.bytesToB64(dhPublicKey)
+    encrypted_signature = util.bytesToB64(encryptedSignature)
+    sts2 = {"type":"STS_2", "from":sender,"dh_public_key":dh_public_key, "encrypted_signature":encrypted_signature}
     return json.dumps(sts2)
 
-def buildSTS3(sender, encryptedSignature):
-    sts3 = {"type":"STS_3", "from":sender, "encrypted_signature":encryptedSignature}
+def buildSTS3(sender, encryptedSignature: bytes):
+    encrypted_signature = util.bytesToB64(encryptedSignature)
+    sts3 = {"type":"STS_3", "from":sender, "encrypted_signature":encrypted_signature}
     return json.dumps(sts3)
 
 # --- FILE_LIST transfer ---

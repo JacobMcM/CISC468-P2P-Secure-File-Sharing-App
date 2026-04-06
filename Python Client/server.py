@@ -176,7 +176,7 @@ def start_server():
 def establishFirstConnection(eke1, sock):
     tempW = "JacobLiam"
 
-    # establish pair-wise derived from w key
+    # establish pair-wise password derived from w key
     sender = eke1.get("from")
     if not sender: raise Exception("From is undefiend")
     passwordKey = util.hash_password(tempW, localName, sender)
@@ -186,9 +186,7 @@ def establishFirstConnection(eke1, sock):
 
     # establish shared key K
     shared_key = models.getEncryptedProp(eke1, "c1", passwordKey)
-    shared_key_int = int.from_bytes(shared_key, byteorder='big')
-    K_int = pow(shared_key_int, priv_key, util.prime)
-    K = K_int.to_bytes((K_int.bit_length() + 7) // 8, byteorder='big')
+    K = util.deriveK(shared_key, priv_key)
 
     # encrypt public DH key as c2
     pub_key_bytes = pub_key.to_bytes((pub_key.bit_length() + 7) // 8, byteorder='big')

@@ -1,8 +1,51 @@
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.exceptions import InvalidSignature
 import os
 import json
 import base64
 import random
+
+
+def deriveK(shared_key_bytes, priv_key_int):
+    shared_key_int = int.from_bytes(shared_key_bytes, byteorder='big')
+    K_int = pow(shared_key_int, priv_key_int, prime)
+    return K_int.to_bytes((K_int.bit_length() + 7) // 8, byteorder='big')
+
+
+# --- RSA Signature verification --
+def bytesToPubRSA(pub_RSA:bytes):
+    return serialization.load_pem_public_key(pub_RSA)
+
+def bytesToPrivRSA(priv_RSA:bytes):
+    return serialization.load_pem_private_key(priv_RSA, password=None)
+
+def verifySign(pub_key_bytes:bytes, sign:bytes, msg:bytes):
+    pub_key = bytesToPubRSA(pub_key_bytes)
+    try:
+        pub_key.verify(
+            sign,
+            msg,
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.AUTO
+            ),
+            hashes.SHA256()
+        )
+    except InvalidSignature:
+        raise Exception("Signature Verification Failed")
+
+def makeSign(priv_key_bytes:bytes, msg:bytes):
+    priv_key = bytesToPrivRSA(priv_key_bytes)
+    return priv_key.sign(
+        msg,
+        padding.PSS(
+            mgf=padding.MGF1(hashes.SHA256()),
+            salt_length=padding.PSS.MAX_LENGTH
+        ),
+        hashes.SHA256()
+    )    
 
 # --- AES Utility functions ---
 def encryptAES(plaintext: bytes, key: bytes):

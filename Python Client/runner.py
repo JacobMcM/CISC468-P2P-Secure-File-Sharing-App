@@ -1,17 +1,6 @@
-# Known-members and their private key-pairs
-#    shared pairwise passwords in .env (for now)
-# connected-members, members from known-members currently connected
-
-# known-filelist - init empty
-
-import base64
-import hashlib
-import secrets
 import os
 import server
 import models
-import random
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 import socket
 import json
 import threading
@@ -81,11 +70,10 @@ def connect(peer: server.peer):
     print(peer)
     client_sock = start_client(peer.ip, peer.port)
     if client_sock == None: return 
-
     
     print("peer private key: " + peer.private_key)
 
-    peer_RSA_pub = storage.passwords.get('key')
+    peer_RSA_pub = storage.getPeerPubRSA(peer.name)
 
     if peer_RSA_pub is None or peer_RSA_pub is None == "":
         try:
@@ -95,16 +83,22 @@ def connect(peer: server.peer):
             client_sock.close()
             return
     else:
-        K = "TODO"
-        #TODO STS key establishment
+        try:
+            K = establishNthConnection(peer, peer_RSA_pub, client_sock)
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")
+            client_sock.close()
+            return
     
     print("Session Key Established with "+ peer.name)
     while True:
-        print("Select action: (x to close connection, r to refresh options)")
-        print("1. Request File List")
-        print("2. Request File")
-        print("3. Send File")
-        i = input(">")
+        print("Select action:")
+        print("  (1) Request File List")
+        print("  (2) Request File")
+        print("  (3) Send File")
+        print("  (x) Close Connection")        
+        print("  (r) Refresh Options")
+        i = input("  >")
 
         if i == "x" or i == "X":
             print("Closing Connection...")
@@ -127,7 +121,7 @@ def connect(peer: server.peer):
 
 # Runs EKE Session establishment, confirms peer private_key, returns Session key K
 def establishFirstConnection(peer: server.peer, client_sock):
-    tempW = "JacobLiam"    
+    tempW = "JacobLiam" #TODO Derive pass other way   
     passwordKey = util.hash_password(tempW, server.localName, peer.name)
     
     print("Pass hashed")
@@ -149,14 +143,11 @@ def establishFirstConnection(peer: server.peer, client_sock):
     eke2 = {}       
     eke2 = util.TCP_Reciever(client_sock)
     print(eke2)
-    if eke2["type"] != "EKE_2": raise Exception("Expected EKE_2")
-    if eke2["from"] != peer.name: raise Exception("Expected different EKE_2 sender")
+    if eke2.get("type") != "EKE_2": raise Exception("Expected EKE_2")
+    if eke2.get("from") != peer.name: raise Exception("Expected different EKE_2 sender")
 
     shared_key = models.getEncryptedProp(eke2, "c2", passwordKey)
-
-    shared_key_int = int.from_bytes(shared_key, byteorder='big')
-    K_int = pow(shared_key_int, priv_key, util.prime)
-    K = K_int.to_bytes((K_int.bit_length() + 7) // 8, byteorder='big')
+    K = util.deriveK(shared_key, priv_key)
 
     print("K:" + str(K_int))
     challenge_b = models.getEncryptedProp(eke2, "c3", K)
@@ -176,8 +167,8 @@ def establishFirstConnection(peer: server.peer, client_sock):
     eke4 = util.TCP_Reciever(client_sock)
     print(eke4)
 
-    if eke4["type"] != "EKE_4": raise Exception("Expected EKE_4")
-    if eke4["from"] != peer.name: raise Exception("Expected different EKE_4 sender")
+    if eke4.get("type") != "EKE_4": raise Exception("Expected EKE_4")
+    if eke4.get("from")!= peer.name: raise Exception("Expected different EKE_4 sender")
 
     c5 = models.getEncryptedProp(eke4, "c5", K)    
     recieved_challenge_a = c5[:16]
@@ -188,18 +179,53 @@ def establishFirstConnection(peer: server.peer, client_sock):
 
     return K
 
-#recieve TCP data
-def reciever(client_sock):
-    raw_len = client_sock.recv(4)
-    msg_len = int.from_bytes(raw_len, byteorder='big')
-    data = b''
-    while len(data) < msg_len:
-        chunk = client_sock.recv(msg_len - len(data))
-        if not chunk:
-            raise ConnectionError("Socket closed before full message received")
-        data += chunk
+def establishNthConnection(peer: server.peer, peer_RSA_pub: bytes, client_sock):
+
+    # Generate DH key pair
+    priv_key, pub_key = util.genDHKeyPair()
+    pub_key_bytes = pub_key.to_bytes((pub_key.bit_length() + 7) // 8, byteorder='big')
+
+    # build & send sts1
+    sts1 = models.buildSTS1(server.localName, pub_key_bytes)    
+    print("sts1: " + sts1)
+    util.TCP_Sender(client_sock, sts1.encode())
+
+    # await and recieve sts2
+    sts2 = {}
+    sts2 = util.TCP_Reciever(client_sock)
+    print(sts2)
+    if sts2.get("type") != "STS_2": raise Exception("Expected STS_2")
+    if sts2.get("from") != peer.name: raise Exception("Expected different STS_2 sender")
     
-    return json.loads(data.decode('utf-8'))
+    # extract shared peer dh_public_key
+    shared_key = sts2.get("dh_public_key")
+    if shared_key == None: raise Exception("DH Public Key is undefined")
+    shared_key_bytes = util.b64ToBytes(shared_key)
+    
+    # establish shared key K
+    K = util.deriveK(shared_key_bytes, priv_key)
+
+    # build signed message we expect to recieve
+    peer_message = shared_key_bytes + pub_key_bytes
+
+    # extract peer signature
+    peer_signature = models.getEncryptedProp(sts2, "encrypted_signature", K)
+
+    # verify signature - Throws error on failure
+    util.verifySign(peer_RSA_pub, peer_signature, peer_message)
+
+    # build message we will sign
+    our_message = pub_key_bytes + shared_key_bytes
+    
+    # build and encryt our signature
+    our_RSA_priv = storage.getPrivRSA()
+    our_signature = util.makeSign(our_RSA_priv, our_message)
+    
+    encrypted_signature = util.encryptAES(our_signature, K)
+    sts3 = models.buildSTS3(server.localName, encrypted_signature)
+
+    return K
+
 
 # wrapper for the processes which can be performed
 def runner():
@@ -229,18 +255,6 @@ def runner():
         else:
             connect(server.active_peers[i])
 
-        
-
-
-    # if first-time
-    #   create and store public/private key
-    
-
-
-
-
-
-
 
     # Call genFilelist
 
@@ -257,13 +271,6 @@ def runner():
     # if "request file"
     #    Prompt for who, and what
     #    Call getFile(Who (user), What (file from known-filelist))
-    
-
-
-
-
-
-
 
     # prompt user for
 
