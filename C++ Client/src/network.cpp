@@ -77,11 +77,11 @@ int connectToPeer(const std::string& ip, uint16_t port) {
 bool sendMessage(int socket, const std::string& message) {
     /*
 
-    This uses **length-prefixing** — before sending the message, you send 4 bytes telling the receiver how long the message is. Without this, the receiver wouldn't know where one message ends and the next begins.
+    This uses length-prefixing — before sending the message, you send 4 bytes telling the receiver how long the message is. Without this, the receiver wouldn't know where one message ends and the next begins.
 
-    **`htonl`** is like `htons` but for 32-bit integers instead of 16-bit. The "l" stands for "long." Converts the length to network byte order so all three clients read it the same way.
+    `htonl` is like `htons` but for 32-bit integers instead of 16-bit. The "l" stands for "long." Converts the length to network byte order so all three clients read it the same way.
 
-    **`send()`** sends data over the socket. It takes the socket, a pointer to the data, the size, and flags (0 means no special flags).
+    `send()` sends data over the socket. It takes the socket, a pointer to the data, the size, and flags (0 means no special flags).
 
     So the data on the wire looks like:
 
@@ -121,8 +121,8 @@ std::string receiveMessage(int socket) {
     So the flow matches `sendMessage`:
     ```
     sendMessage:                    receiveMessage:
-    1. htonl(length)         →     1. recv 4 bytes, ntohl(length)
-    2. send length            →     2. recv message until totalRead == length
+    1. htonl(length)         ->     1. recv 4 bytes, ntohl(length)
+    2. send length            ->     2. recv message until totalRead == length
     3. send message
     */
 

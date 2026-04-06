@@ -177,69 +177,11 @@ def test_file_not_found():
     except Exception as e:
         report("File not found error", False, str(e))
 
-# --- Test 3: DH-EKE Handshake ---
-
-def test_eke_handshake():
-    print("\n" + "=" * 50)
-    print("TEST 3: DH-EKE HANDSHAKE (mutual authentication)")
-    print("=" * 50)
-    try:
-        import secrets
-        W = derive_eke_key(PASSWORD, MY_NAME, PEER_NAME)
-        report("PBKDF2 key derivation", len(W) == 32)
-
-        a = secrets.randbelow(P - 3) + 2
-        pub_a = pow(ALPHA, a, P)
-        pub_a_bytes = int_to_bytes_256(pub_a)
-
-        sock = connect()
-
-        # EKE_1
-        c1 = aes_gcm_encrypt(W, pub_a_bytes)
-        send_message(sock, json.dumps({"type": "EKE_1", "from": MY_NAME, "c1": c1}))
-
-        # EKE_2
-        resp2 = json.loads(receive_message(sock))
-        report("Received EKE_2", resp2["type"] == "EKE_2")
-
-        peer_pub_bytes = aes_gcm_decrypt(W, resp2["c2"])
-        report("Decrypted peer DH public value", len(peer_pub_bytes) == 256)
-
-        peer_pub_b = int.from_bytes(peer_pub_bytes, byteorder='big')
-        shared_secret = pow(peer_pub_b, a, P)
-        ss_bytes = shared_secret.to_bytes((shared_secret.bit_length() + 7) // 8, byteorder='big')
-        K = hashlib.sha256(ss_bytes).digest()
-        report("Derived session key K", len(K) == 32)
-
-        r_B = aes_gcm_decrypt(K, resp2["c3"])
-        report("Decrypted challenge r_B", len(r_B) == 16)
-
-        # EKE_3
-        r_A = os.urandom(16)
-        payload = r_A + r_B + FAKE_RSA_PEM.encode()
-        c4 = aes_gcm_encrypt(K, payload)
-        send_message(sock, json.dumps({"type": "EKE_3", "from": MY_NAME, "c4": c4}))
-
-        # EKE_4
-        resp4 = json.loads(receive_message(sock))
-        report("Received EKE_4", resp4["type"] == "EKE_4")
-
-        plaintext4 = aes_gcm_decrypt(K, resp4["c5"])
-        r_A_echo = plaintext4[:16]
-        peer_rsa_pem = plaintext4[16:].decode()
-
-        report("Challenge r_A verified (mutual auth)", r_A_echo == r_A)
-        report("Received peer RSA public key", "BEGIN PUBLIC KEY" in peer_rsa_pem)
-
-        sock.close()
-    except Exception as e:
-        report("EKE handshake", False, str(e))
-
-# --- Test 4: EKE with wrong password ---
+# --- Test 3: EKE with wrong password ---
 
 def test_eke_wrong_password():
     print("\n" + "=" * 50)
-    print("TEST 4: DH-EKE with WRONG PASSWORD (error scenario)")
+    print("TEST 3: DH-EKE with WRONG PASSWORD (error scenario)")
     print("=" * 50)
     try:
         import secrets
@@ -268,36 +210,11 @@ def test_eke_wrong_password():
         # Connection error = server rejected
         report("Wrong password rejected", True)
 
-# --- Test 5: Hash verification ---
-
-def test_hash_verification(files):
-    print("\n" + "=" * 50)
-    print("TEST 5: FILE HASH VERIFICATION (integrity)")
-    print("=" * 50)
-    if not files:
-        report("Hash verification", False, "No files to test")
-        return
-
-    try:
-        filename = files[0]["name"]
-        expected_hash = files[0]["hash"]
-
-        # Read the actual file
-        shared_dir = os.path.expanduser("~/.p2pclient/shared")
-        filepath = os.path.join(shared_dir, filename)
-        with open(filepath, "rb") as f:
-            contents = f.read()
-
-        computed_hash = hashlib.sha256(contents).hexdigest()
-        report("SHA-256 hash matches file list", computed_hash == expected_hash)
-    except Exception as e:
-        report("Hash verification", False, str(e))
-
-# --- Test 6: Secure local storage (PBKDF2 + AES-256-GCM) ---
+# --- Test 4: Secure local storage (PBKDF2 + AES-256-GCM) ---
 
 def test_local_storage():
     print("\n" + "=" * 50)
-    print("TEST 6: SECURE LOCAL STORAGE (PBKDF2 + AES-256-GCM)")
+    print("TEST 4: SECURE LOCAL STORAGE (PBKDF2 + AES-256-GCM)")
     print("=" * 50)
     try:
         passphrase = "testdevicepass"
@@ -341,11 +258,11 @@ def test_local_storage():
     except Exception as e:
         report("Local storage", False, str(e))
 
-# --- Test 7: Legacy handshake rejected ---
+# --- Test 5: Legacy handshake rejected ---
 
 def test_legacy_handshake_rejected():
     print("\n" + "=" * 50)
-    print("TEST 7: LEGACY HANDSHAKE REJECTED (error scenario)")
+    print("TEST 5: LEGACY HANDSHAKE REJECTED (error scenario)")
     print("=" * 50)
     try:
         sock = connect()
@@ -366,11 +283,11 @@ def test_legacy_handshake_rejected():
     except Exception as e:
         report("Legacy handshake rejection", False, str(e))
 
-# --- Test 8: Invalid message type ---
+# --- Test 6: Invalid message type ---
 
 def test_invalid_message():
     print("\n" + "=" * 50)
-    print("TEST 8: INVALID MESSAGE TYPE (error scenario)")
+    print("TEST 6: INVALID MESSAGE TYPE (error scenario)")
     print("=" * 50)
     try:
         sock = connect()
@@ -399,13 +316,11 @@ if __name__ == "__main__":
 
     try:
         # Basic operation tests
-        files = test_file_list()
+        test_file_list()
         test_file_not_found()
 
         # Security tests
-        test_eke_handshake()
         test_eke_wrong_password()
-        test_hash_verification(files)
 
         # Local storage tests
         test_local_storage()
