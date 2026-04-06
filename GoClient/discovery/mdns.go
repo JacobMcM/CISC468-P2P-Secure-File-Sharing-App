@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
@@ -55,19 +54,6 @@ func RegisterMdnsServer(name string, port int) *zeroconf.Server {
 
 	log.Printf("Advertising service %s on port %d\n", name, port)
 
-	// // REMOVE LATER
-	// PeersMu.Lock()
-	// peer := &Peer{
-	// 	Name:     "Fake1",
-	// 	IP:       "123.456.78.9",
-	// 	Port:     1000,
-	// 	TXT:      []string{"somefile.txt"},
-	// 	FileList: []string{"somefile.txt", "file2.txt", "file3.txt"},
-	// 	LastSeen: time.Now(),
-	// }
-	// Peers[peer.Name] = peer;
-	// PeersMu.Unlock()
-
 	return server
 }
 
@@ -103,7 +89,6 @@ func StartPeerDiscovery(ctx context.Context, selfName string) {
 				Peers[entry.Instance] = peer
 				PeersMu.Unlock()
 			} else {
-				// Update last seen
 				Peers[entry.Instance].LastSeen = time.Now()
 				PeersMu.Unlock()
 			}
@@ -112,7 +97,7 @@ func StartPeerDiscovery(ctx context.Context, selfName string) {
 
 	err = resolver.Browse(ctx, "_p2p._tcp", "local.", entries)
 	if err != nil {
-		log.Fatal("Failed to browse:", err)
+		fmt.Printf("Failed to browse: %s", err)
 	}
 }
 
@@ -174,17 +159,12 @@ func LoadPeerKeys(path string) (map[string]*rsa.PublicKey, error) {
     return keys, nil
 }
 
-func AddPeerRecord(path, name, b64Key string) error {
-    der, err := base64.StdEncoding.DecodeString(b64Key)
+func AddPeerRecord(path, name string, pub *rsa.PublicKey) error {
+    der, err := x509.MarshalPKIXPublicKey(pub)
     if err != nil {
-        return err
+        return fmt.Errorf("failed to marshal public key: %w", err)
     }
-    if _, err := x509.ParsePKIXPublicKey(der); err != nil {
-        return fmt.Errorf("invalid public key: %w", err)
-    }
-
     pemStr := string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}))
-
     var peerPubKeyDB PeerPubKeyDB
     data, err := os.ReadFile(path)
     if err != nil && !os.IsNotExist(err) {
@@ -193,9 +173,7 @@ func AddPeerRecord(path, name, b64Key string) error {
     if len(data) > 0 {
         json.Unmarshal(data, &peerPubKeyDB)
     }
-
     peerPubKeyDB.PeerPubKeys = append(peerPubKeyDB.PeerPubKeys, PeerPubKeyRecord{Name: name, PublicKey: pemStr})
-
     out, _ := json.MarshalIndent(peerPubKeyDB, "", "  ")
     return os.WriteFile(path, out, 0644)
 }

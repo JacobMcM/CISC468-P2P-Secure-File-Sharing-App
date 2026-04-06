@@ -4,77 +4,92 @@ import (
 	"GoClient/crypto"
 	"GoClient/protocol"
 	"GoClient/session"
-	"fmt"
 )
 
-func RunClientSideSTS(conn *session.FramedConn, password, selfName, peerName string) (*session.SecureSession, error) {
-	p, err := crypto.NewPakeState(password, selfName, peerName); if err != nil {
+func RunClientSideSTS(conn *session.FramedConn, selfName, peerName string) (*session.SecureSession, error) {
+	s, err := crypto.NewStsState(peerName); if err != nil {
 		return nil, err
 	}
 
-	p.GenerateA()
-	p.GenerateRA()
-
-	C1 := p.BuildC1()
-
-	eke1Message, _ := protocol.BuildEKE1(selfName, C1)
-	conn.Send(eke1Message)
-	fmt.Printf("Sent EKE1 to Peer!")
-
-	// Receive C2 = enc_w(alpha^b), C3 = enc_K(r_b)
-	eke2raw, err := conn.Recv()
-	if err != nil {
-		panic(fmt.Sprintf("Recv C2 failed: %v", err))
-	}
-
-	eke2Message, err := protocol.ParseMessage[protocol.EKE2Message](eke2raw)
-	if err != nil {
-		panic("FAILED TO PARSE EKE2MESSAGE")
-	}
-
-	p2Bytes, err := p.DecryptW(eke2Message.C2)
-	if err != nil {
-		panic("fialed to decrypt p2")
-	}
-
-	p.DeriveK(p2Bytes)
-	fmt.Printf("MY KEY: %s", p.K)
-
-	p3Bytes, _ := p.DecryptK(eke2Message.C3);
-	p.GenerateRA();
-
-	C4, err := p.BuildC4(p3Bytes); if err != nil {
+	myDhValue, err := s.BuildSTSMessage1Values(); if err != nil {
 		return nil, err
 	}
 
-	eke3Message, err := protocol.BuildEKE3(selfName, C4)
-	if err != nil {
-		panic("FAILED TO BUILD EKE3")
+	stsMessage1, err := protocol.BuildSTS1(selfName, myDhValue); if err != nil {
+		return nil, err
 	}
 
-	conn.Send(eke3Message)
-	fmt.Printf("Sent C4 to peer, Length: %d\n", len(C4))
+	conn.Send(stsMessage1)
 
-	// Receive server's challenge response and verify
-	eke4raw, err := conn.Recv()
-	if err != nil {
-		panic("Failed to recv eke4")
+	sts2raw, err := conn.Recv(); if err != nil {
+		return nil, err
 	}
 
-	eke4Message, err := protocol.ParseMessage[protocol.EKE4Message](eke4raw)
+	stsMessage2, err := protocol.ParseMessage[protocol.STS2Message](sts2raw); if err != nil {
+		return nil, err
+	}
 
-	receivedRA, _ := p.DecryptK(eke4Message.C5);
+	err = s.DeriveK(stsMessage2.Dh_public_key); if err != nil {
+		return nil, err
+	}
 
-	p.ValidateRA(receivedRA)
+	plaintextSignature, err := s.DecryptK(stsMessage2.Encrypted_signature); if err != nil {
+		return nil, err
+	}
 
-	secureSession := session.NewSecureSession(conn, p.K, peerName)
 
-	return secureSession, nil
+	err = s.VerifyReceivedSignature(stsMessage2.Dh_public_key, plaintextSignature); if err != nil {
+		return nil, err
+	}
+
+	_, encryptedSignature, err := s.BuildSTSMessageValues(stsMessage2.Dh_public_key); if err != nil {
+		return nil, err
+	}
+
+	stsMessage3, err := protocol.BuildSTS3(selfName, encryptedSignature); if err != nil {
+		return nil, err
+	}
+
+	conn.Send(stsMessage3)
+
+	return session.NewSecureSession(conn, s.K, peerName, selfName, s.PeerPubKey), nil
 }
 
-// func RunServerSideSTS(conn *session.FramedConn, init_message protocol.STS1Message, selfName string) (*session.SecureSession, error) {
-// 	s, err := crypto.NewStsState(init_message.From); if err != nil {
-// 		return nil, err
-// 	}
-// 	return session.NewSecureSession(conn, p.K, init_message.From), nil
-// }
+func RunServerSideSTS(conn *session.FramedConn, init_message protocol.STS1Message, selfName string) (*session.SecureSession, error) {
+	s, err := crypto.NewStsState(init_message.From); if err != nil {
+		return nil, err
+	}
+
+	err = s.DeriveK(init_message.Dh_public_key); if err != nil {
+		return nil, err
+	}
+
+	myDhValue, encryptedSignature, err := s.BuildSTSMessageValues(init_message.Dh_public_key); if err != nil {
+		return nil, err
+	}
+
+	stsMessage2, err := protocol.BuildSTS2(selfName, myDhValue, encryptedSignature); if err != nil {
+		return nil, err
+	}
+
+	conn.Send(stsMessage2)
+
+	// Receive C2 = enc_w(alpha^b), C3 = enc_K(r_b)
+	sts3raw, err := conn.Recv(); if err != nil {
+		return nil, err
+	}
+
+	stsMessage3, err := protocol.ParseMessage[protocol.STS3Message](sts3raw); if err != nil {
+		return nil, err
+	}
+
+	plaintextSignature, err := s.DecryptK(stsMessage3.Encrypted_signature); if err != nil {
+		return nil, err
+	}
+
+	err = s.VerifyReceivedSignature(init_message.Dh_public_key, plaintextSignature); if err != nil {
+		return nil, err
+	}
+
+	return session.NewSecureSession(conn, s.K, init_message.From, selfName, s.PeerPubKey), nil
+}

@@ -1,10 +1,14 @@
+/*
+This file represents our messaging protocol.
+Valid messages are typed and enumerated below.
+A constructor function is provided for each message, converting it to valid json for network transmission.
+*/
+
 package protocol
 
 import (
-	"encoding/binary"
+	file "GoClient/file_manager"
 	"encoding/json"
-	"io"
-	"net"
 )
 
 type MessageType string
@@ -18,14 +22,14 @@ const (
 	STS_1              MessageType = "STS_1"
 	STS_2              MessageType = "STS_2"
 	STS_3              MessageType = "STS_3"
-	// FILE_LIST_REQUEST  MessageType = "FILE_LIST_REQUEST"
-	// FILE_LIST_RESPONSE MessageType = "FILE_LIST_RESPONSE"
-	// FILE_REQUEST       MessageType = "FILE_REQUEST"
-	// CONSENT_REQUEST    MessageType = "CONSENT_REQUEST"
-	// CONSENT_RESPONSE   MessageType = "CONSENT_RESPONSE"
-	// FILE_TRANSFER      MessageType = "FILE_TRANSFER"
+	FILE_LIST_REQUEST  MessageType = "FILE_LIST_REQUEST"
+	FILE_LIST_RESPONSE MessageType = "FILE_LIST_RESPONSE"
+	FILE_REQUEST       MessageType = "FILE_REQUEST"
+	CONSENT_REQUEST    MessageType = "CONSENT_REQUEST"
+	CONSENT_RESPONSE   MessageType = "CONSENT_RESPONSE"
+	FILE_TRANSFER      MessageType = "FILE_TRANSFER"
 	// KEY_ROTATION       MessageType = "KEY_ROTATION"
-	// ERROR_MSG          MessageType = "ERROR_MSG"
+	ERROR_MSG          MessageType = "ERROR_MSG"
 )
 
 // First decode incoming messages to this, then read type and cast json to more specific struct
@@ -75,6 +79,53 @@ type STS3Message struct {
     Type MessageType `json:"type"`
     From string `json:"from"`
     Encrypted_signature []byte `json:"encrypted_signature"`
+}
+
+type FileListRequestMessage struct {
+    Type MessageType `json:"type"`
+    From string `json:"from"`
+}
+
+type FileListResponseMessage struct {
+    Type MessageType `json:"type"`
+    From string `json:"from"`
+    Files []*file.FileInfo `json:"files"`
+}
+
+type FileRequestMessage struct {
+    Type MessageType `json:"type"`
+    From string `json:"from"`
+    Filename string `json:"filename"`
+}
+
+type ConsentRequestMessage struct {
+    Type MessageType `json:"type"`
+    From string `json:"from"`
+    Filename string `json:"filename"`
+    Filesize int64 `json:"filesize"`
+}
+
+type ConsentResponseMessage struct {
+    Type MessageType `json:"type"`
+    From string `json:"from"`
+    Filename string `json:"filename"`
+    Accepted bool `json:"accepted"`
+}
+
+type FileTransferMessage struct {
+    Type MessageType `json:"type"`
+    From string `json:"from"`
+    Filename string `json:"filename"`
+    Data []byte `json:"data"`
+    Hash []byte `json:"hash"`
+    Signature []byte `json:"signature"`
+    OriginalOwner string `json:"original_owner"`
+}
+
+type ErrorMessage struct {
+    Type MessageType `json:"type"`
+    From string `json:"from"`
+    Message string `json:"message"`
 }
 
 func BuildEKE1(from string, c1 []byte) ([]byte, error) {
@@ -135,34 +186,73 @@ func BuildSTS3(from string, encryptedSignature []byte) ([]byte, error) {
 	})
 }
 
+func BuildFileListRequest(from string) ([]byte, error) {
+    return json.Marshal(FileListRequestMessage{
+        Type: FILE_LIST_REQUEST,
+        From: from,
+    })
+}
 
+func BuildFileListResponse(from string, files []*file.FileInfo) ([]byte, error) {
+    return json.Marshal(FileListResponseMessage{
+        Type: FILE_LIST_RESPONSE,
+        From: from,
+        Files: files,
+    })
+}
 
+func BuildFileRequest(from, filename string) ([]byte, error) {
+    return json.Marshal(FileRequestMessage{
+        Type: FILE_REQUEST,
+        From: from,
+        Filename: filename,
+    })
+}
+
+func BuildConsentRequest(from, filename string, filesize int64) ([]byte, error) {
+    return json.Marshal(ConsentRequestMessage{
+        Type: CONSENT_REQUEST,
+        From: from,
+        Filename: filename,
+        Filesize: filesize,
+    })
+}
+
+func BuildConsentResponse(from, filename string, accepted bool) ([]byte, error) {
+    return json.Marshal(ConsentResponseMessage{
+        Type: CONSENT_RESPONSE,
+        From: from,
+        Filename: filename,
+        Accepted: accepted,
+    })
+}
+
+func BuildFileTransfer(from, filename, original_owner string, hash, signature, data []byte) ([]byte, error) {
+    return json.Marshal(FileTransferMessage{
+        Type: FILE_TRANSFER,
+        From: from,
+        Filename: filename,
+        Data: data,
+        Hash: hash,
+        Signature: signature,
+        OriginalOwner: original_owner,
+    })
+}
+
+func BuildErrorMessage(from, message string) ([]byte, error) {
+    return json.Marshal(ErrorMessage{
+        Type: ERROR_MSG,
+        From: from,
+        Message: message,
+    })
+}
 
 type Message interface {
-    BaseMessage | EKE1Message | EKE2Message | EKE3Message | EKE4Message | STS1Message | STS2Message | STS3Message 
+    BaseMessage | EKE1Message | EKE2Message | EKE3Message | EKE4Message | STS1Message | STS2Message | STS3Message | FileListRequestMessage | FileListResponseMessage | FileRequestMessage | FileTransferMessage | ErrorMessage | ConsentRequestMessage | ConsentResponseMessage
 }
 
 func ParseMessage[T Message](data []byte) (T, error) {
     var msg T
     err := json.Unmarshal(data, &msg)
     return msg, err
-}
-
-func sendMessage(conn net.Conn, msg []byte) error {
-    length := uint32(len(msg))
-    if err := binary.Write(conn, binary.BigEndian, length); err != nil {
-        return err
-    }
-    _, err := conn.Write(msg)
-    return err
-}
-
-func receiveMessage(conn net.Conn) ([]byte, error) {
-    var length uint32
-    if err := binary.Read(conn, binary.BigEndian, &length); err != nil {
-        return nil, err
-    }
-    buf := make([]byte, length)
-    _, err := io.ReadFull(conn, buf)
-    return buf, err
 }

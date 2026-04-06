@@ -1,5 +1,5 @@
 /*
-framed_conn.go wraps a TCP connection object with length prefixed Send/Receive
+framed_conn.go wraps a TCP connection object with length prefixed Send/Receive methods
 */
 
 package session

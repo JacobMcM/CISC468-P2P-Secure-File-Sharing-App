@@ -101,7 +101,11 @@ func BigIntToBytes(n *big.Int) []byte {
 	return n.Bytes()
 }
 
-func deriveKeyFromPassphrase(password string, salt []byte) []byte {
+func BigIntToB64(n *big.Int) string {
+	return base64.StdEncoding.EncodeToString(n.Bytes())
+}
+
+func DeriveKeyFromPassphrase(password string, salt []byte) []byte {
     return pbkdf2.Key([]byte(password), salt, 600000, 32, sha256.New)
 }
 
@@ -116,10 +120,10 @@ func DeriveEKEKey(password, peerA, peerB string) ([]byte) {
     saltHash := sha256.Sum256([]byte(combined))
     salt := saltHash[:16]
 
-    return deriveKeyFromPassphrase(password, salt)
+    return DeriveKeyFromPassphrase(password, salt)
 }
 
-func loadPrivateKey(path string) (*rsa.PrivateKey, error) {
+func LoadPrivateKey(path string) (*rsa.PrivateKey, error) {
     data, err := os.ReadFile(path)
     if err != nil {
         return nil, err
@@ -149,7 +153,7 @@ var pssOptions = &rsa.PSSOptions{
     Hash:       crypto.SHA256,
 }
 
-func rsaPssSign(privKey *rsa.PrivateKey, data []byte) (string, error) {
+func RsaPssSign(privKey *rsa.PrivateKey, data []byte) (string, error) {
     hash := sha256.Sum256(data)
     sig, err := rsa.SignPSS(rand.Reader, privKey, crypto.SHA256, hash[:], pssOptions)
     if err != nil {
@@ -158,7 +162,7 @@ func rsaPssSign(privKey *rsa.PrivateKey, data []byte) (string, error) {
     return base64.StdEncoding.EncodeToString(sig), nil
 }
 
-func rsaPssVerify(pubKey *rsa.PublicKey, data []byte, b64Sig string) error {
+func RsaPssVerify(pubKey *rsa.PublicKey, data []byte, b64Sig string) error {
     sigBytes, err := base64.StdEncoding.DecodeString(b64Sig)
     if err != nil {
         return fmt.Errorf("invalid base64 signature: %w", err)
@@ -176,12 +180,30 @@ func publicKeyToBase64(pub *rsa.PublicKey) (string, error) {
     return base64.StdEncoding.EncodeToString(der), nil
 }
 
+func Base64ToPublicKey(s string) (*rsa.PublicKey, error) {
+    der, err := base64.StdEncoding.DecodeString(s)
+    if err != nil {
+        return nil, err
+    }
+
+    pub, err := x509.ParsePKIXPublicKey(der)
+    if err != nil {
+        return nil, err
+    }
+
+    rsaPub, ok := pub.(*rsa.PublicKey)
+    if !ok {
+        return nil, fmt.Errorf("not an RSA public key")
+    }
+    return rsaPub, nil
+}
+
 type StsState struct {
 	myDhExp *big.Int
 	myDhValue *big.Int
 	K []byte
 	myPrivKey *rsa.PrivateKey
-	peerPubKey *rsa.PublicKey
+	PeerPubKey *rsa.PublicKey
 }
 
 func NewStsState(peerName string) (*StsState, error) {
@@ -195,8 +217,7 @@ func NewStsState(peerName string) (*StsState, error) {
 	myDhValue := new(big.Int).Exp(dhAlpha, exp, dhP)
 
 	newStsState.myDhValue = myDhValue
-
-	myPrivKey, err := loadPrivateKey("keys/private.pem"); if err != nil {
+	myPrivKey, err := LoadPrivateKey("keys/private.pem"); if err != nil {
 		return nil, err
 	}
 
@@ -211,14 +232,27 @@ func NewStsState(peerName string) (*StsState, error) {
 		return nil, fmt.Errorf("Peer %s does not have an associated RSA PubKey stored", peerName)
 	}
 
-	newStsState.peerPubKey = peerPubKey
+	newStsState.PeerPubKey = peerPubKey
 	return newStsState, nil
 }
 
-func (s *StsState) BuildSTSMessage2Values(peerDhValue []byte) ([]byte, []byte, error){
+func (s *StsState) VerifyReceivedSignature(peerDhValue []byte, signature []byte) error {
+	data := append(peerDhValue, BigIntToBytes(s.myDhValue)...)
+    return RsaPssVerify(s.PeerPubKey, data, string(signature))
+}
+
+func (s *StsState) BuildSTSMessage1Values() ([]byte, error) {
+	if s.myDhValue == nil {
+		return nil, fmt.Errorf("Attempting to build STS message 1 before myDhValue initiated")
+	}
+
+	return BigIntToBytes(s.myDhValue), nil
+}
+
+func (s *StsState) BuildSTSMessageValues(peerDhValue []byte) ([]byte, []byte, error){
 	myDhValueAsBytes := BigIntToBytes(s.myDhValue)
-	concatenatedDhValues := append(myDhValueAsBytes, peerDhValue...);
-	signature, err := rsaPssSign(s.myPrivKey, concatenatedDhValues); if err != nil {
+    concatenatedDhValues := append(myDhValueAsBytes, peerDhValue...)
+    signature, err := RsaPssSign(s.myPrivKey, concatenatedDhValues); if err != nil {
 		return nil, nil, err
 	}
 
@@ -233,7 +267,7 @@ func (s *StsState) BuildSTSMessage2Values(peerDhValue []byte) ([]byte, []byte, e
 	return myDhValueAsBytes, encryptedSignature, nil
 }
 
-func (s *StsState) deriveK(peerDhValue []byte) error {
+func (s *StsState) DeriveK(peerDhValue []byte) error {
 	peerDhBigInt, err := BytesToBigInt(peerDhValue); if err != nil {
 		return err
 	}
@@ -244,6 +278,11 @@ func (s *StsState) deriveK(peerDhValue []byte) error {
 	s.K = k[:]	
 	return nil
 }
+
+func (s *StsState) DecryptK(ciphertext []byte) ([]byte, error) {
+	return Decrypt(s.K, ciphertext)
+}
+
 
 type PakeState struct {
 	w    []byte

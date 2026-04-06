@@ -70,11 +70,15 @@ func RunClientSideDhEKE(conn *session.FramedConn, password, selfName, peerName s
 	receivedRA := P5[:16]
 	peerPubKeyB64 := P5[16:]
 
+	peerPubKey, err := crypto.Base64ToPublicKey(string(peerPubKeyB64)); if err != nil {
+		return nil, err
+	}
+
 	p.ValidateRA(receivedRA)
 
-	secureSession := session.NewSecureSession(conn, p.K, peerName)
+	secureSession := session.NewSecureSession(conn, p.K, peerName, selfName, peerPubKey)
 
-	err = discovery.AddPeerRecord("keys/peer_pub_keys.json", peerName, string(peerPubKeyB64)); if err != nil {
+	err = discovery.AddPeerRecord("keys/peer_pub_keys.json", peerName, peerPubKey); if err != nil {
 		return nil, err
 	}
 
@@ -128,6 +132,10 @@ func RunServerSideDhEKE(conn *session.FramedConn, init_message protocol.EKE1Mess
 
 	peerPubKeyB64 := P4_bytes[32:]
 
+	peerPubKey, err := crypto.Base64ToPublicKey(string(peerPubKeyB64)); if err != nil {
+		return nil, err
+	}
+
 	C5, err := p.BuildC5(rA)
 	eke4Message, err := protocol.BuildEKE4(selfName, C5)
 
@@ -138,7 +146,7 @@ func RunServerSideDhEKE(conn *session.FramedConn, init_message protocol.EKE1Mess
 	conn.Send(eke4Message)
 	fmt.Printf("Sent C5 to Peer! Length: %d\n", len(C5));
 
-	discovery.AddPeerRecord("keys/peer_pub_keys.json", init_message.From, string(peerPubKeyB64))
+	discovery.AddPeerRecord("keys/peer_pub_keys.json", init_message.From, peerPubKey)
 
-	return session.NewSecureSession(conn, p.K, init_message.From), nil
+	return session.NewSecureSession(conn, p.K, init_message.From, selfName, peerPubKey), nil
 }

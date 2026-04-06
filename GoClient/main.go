@@ -33,12 +33,7 @@ func main() {
 	defer cancel()
 
 	go discovery.StartPeerDiscovery(ctx, selfName)
-	// go discovery.StartPeerCleaning(30 * time.Second)
-	// go discovery.StartPeerLogging()
 	go StartREPL(selfName)
-	// discovery.StartHeartbeat(ctx)
-	// ui.StartShopApp()
-
 	
 	select {}
 }
@@ -93,7 +88,7 @@ func StartREPL(selfName string) {
             }
 
             fmt.Printf("Connected to %s\n", peer.Name)
-            go transport.RunSecureApp(secureSession)
+            transport.RunSecureClientSession(secureSession)
         }
     }
 }
