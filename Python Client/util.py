@@ -22,12 +22,12 @@ def TCP_Sender(client_sock, msg: bytes):
     client_sock.sendall(len(msg).to_bytes(4, byteorder='big'))
     client_sock.sendall(msg)
 
-def TCP_Reciever(client_sock):
-    raw_len = client_sock.recv(4)
+def TCP_Reciever(conn):
+    raw_len = conn.recv(4)
     msg_len = int.from_bytes(raw_len, byteorder='big')
     data = b''
     while len(data) < msg_len:
-        chunk = client_sock.recv(msg_len - len(data))
+        chunk = conn.recv(msg_len - len(data))
         if not chunk:
             raise ConnectionError("Socket closed before full message received")
         data += chunk
