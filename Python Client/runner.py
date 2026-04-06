@@ -83,10 +83,47 @@ def connect(peer: server.peer):
     if client_sock == None: return 
 
     
-    print("peer private key: " + peer.private_key)  
+    print("peer private key: " + peer.private_key)
 
-    if peer.private_key.trim == "" or peer.private_key == None:
-        K = establishFirstConnection(peer, client_sock)
+    peer_RSA_pub = storage.passwords.get('key')
+
+    if peer_RSA_pub is None or peer_RSA_pub is None == "":
+        try:
+            K = establishFirstConnection(peer, client_sock)
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")
+            client_sock.close()
+            return
+    else:
+        K = "TODO"
+        #TODO STS key establishment
+    
+    print("Session Key Established with "+ peer.name)
+    while True:
+        print("Select action: (x to close connection, r to refresh options)")
+        print("1. Request File List")
+        print("2. Request File")
+        print("3. Send File")
+        i = input(">")
+
+        if i == "x" or i == "X":
+            print("Closing Connection...")
+            client_sock.close()
+            break
+        elif i == "1" or i == 1:
+            print("requesting File List")
+            # TODO Request file list
+        elif i == "2" or i == 2:
+            print("requesting File")
+            # TODO Request file
+        elif i == "3" or i == 3:
+            print("sending File")
+            # TODO Request file
+        else:
+            continue # refresh
+
+
+
 
 # Runs EKE Session establishment, confirms peer private_key, returns Session key K
 def establishFirstConnection(peer: server.peer, client_sock):
@@ -96,24 +133,7 @@ def establishFirstConnection(peer: server.peer, client_sock):
     print("Pass hashed")
     util.bytesToB64(passwordKey)
 
-    # RFC 3526 Group 14 prime (2048-bit safe prime, α=2)
-    ALPHA = 2
-    RFC3526_PRIME_HEX = \
-        "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD1" \
-        "29024E088A67CC74020BBEA63B139B22514A08798E3404DD" \
-        "EF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245" \
-        "E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7ED" \
-        "EE386BFB5A899FA5AE9F24117C4B1FE649286651ECE45B3D" \
-        "C2007CB8A163BF0598DA48361C55D39A69163FA8FD24CF5F" \
-        "83655D23DCA3AD961C62F356208552BB9ED529077096966D" \
-        "670C354E4ABC9804F1746C08CA18217C32905E462E36CE3B" \
-        "E39E772C180E86039B2783A2EC07A28FB5C55DF06F4C52C9" \
-        "DE2BCBF6955817183995497CEA956AE515D2261898FA0510" \
-        "15728E5A8AACAA68FFFFFFFFFFFFFFFF";
-    
-    prime = int(RFC3526_PRIME_HEX, 16)
-    priv_key = random.randint(2, prime - 1)
-    pub_key = pow(ALPHA, priv_key, prime)
+    priv_key, pub_key = util.genDHKeyPair()
     plaintext = pub_key.to_bytes((pub_key.bit_length() + 7) // 8, byteorder='big')
 
     print("plaintext generated")
@@ -144,9 +164,9 @@ def establishFirstConnection(peer: server.peer, client_sock):
     print("K:" + str(K_int))
     challenge_b = util.decryptAES(eke2["c3"], K)
 
-    challenge_a = os.urandom(32)
-    challenge_ab = challenge_a + challenge_b
-
+    challenge_a = os.urandom(16)
+    pub_RSA = util.b64ToBytes(storage.passwords["RSA_Public"])
+    challenge_ab = challenge_a + challenge_b + pub_RSA
 
     c4 = util.encryptAES(challenge_ab, K)
 
@@ -163,9 +183,13 @@ def establishFirstConnection(peer: server.peer, client_sock):
     if eke2["from"] != peer.name: raise Exception("Expected different EKE_4 sender")
     if not eke2["c5"]: raise Exception("C5 is undefined")
 
-    recieved_challenge_a = util.decryptAES(eke2["c5"], K)
+    c5 = util.decryptAES(eke2["c5"], K)
+    recieved_challenge_a = c5[:16]
+    peer_pub_RSA = c5[16:]
     if challenge_a != recieved_challenge_a: raise Exception("Key Establishment challenge failed")
-   
+
+    storage.passwords[peer.name] = util.bytesToB64(peer_pub_RSA)
+    storage.savePass()   
 
     return K
 
