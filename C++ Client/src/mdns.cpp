@@ -1,7 +1,12 @@
 #include "mdns.h"
 #include <iostream>
 #include <cstring>
-#include <netdb.h>
+
+#ifdef _WIN32
+    #include <ws2tcpip.h>
+#else
+    #include <netdb.h>
+#endif
 
 // Global map of discovered peers
 std::map<std::string, Peer> discoveredPeers;

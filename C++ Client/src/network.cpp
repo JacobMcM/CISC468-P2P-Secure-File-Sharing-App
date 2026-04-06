@@ -13,7 +13,11 @@ int startServer(uint16_t port) {
 
    // Step 2: Allow reusing the port if the program restarts quickly
    int opt = 1;
-   setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+   #ifdef _WIN32
+       setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt));
+   #else
+       setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+   #endif
 
 
    // Step 3: Set up the address — listen on all interfaces at the given port
