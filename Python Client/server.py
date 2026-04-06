@@ -52,6 +52,7 @@ def deserialize_request(raw: bytes) -> Request:
 # Dns Part
 # -------------------------------
 def advertise_Service():
+    global KILL_THREADS, active_peers
     load_dotenv()
     JACOBIP = os.getenv('JACOBIP')
 
@@ -105,44 +106,14 @@ def advertise_Service():
     zeroconf.unregister_service(info)
     zeroconf.close()
 
-# -------------------------------
-# Server Part
-# -------------------------------
-def start_server():
-    server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_sock.bind((HOST, PORT))
-    server_sock.listen()
-    server_sock.settimeout(5)  # 5 second timeout
-    print(f"[SERVER] Listening on {HOST}:{PORT}\n")
-
-    try:
-        while not KILL_THREADS:
-            try:
-                conn, addr = server_sock.accept()
-                data = conn.recv(1024)
-                request = deserialize_request(data)
-
-                #match request.action:
-                #    case "List":
-                #    case "connect":
-                print(f"[SERVER] Received from {addr}: {data.decode()}\n")             
-
-                conn.sendall(f"Echo: {data.decode()}".encode())
-                conn.close()
-                print(f"[SERVER] Connection closed: {addr}\n")
-            except socket.timeout:
-                if KILL_THREADS:
-                    break
-    finally:
-        server_sock.close()
-
-
 
 def kill_threads():
+    global KILL_THREADS
     KILL_THREADS = True
 
 
 def get_peers():
+    global KILL_THREADS, active_peers
     if KILL_THREADS:
         return {}
     return active_peers

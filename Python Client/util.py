@@ -33,6 +33,10 @@ def TCP_Reciever(client_sock):
     return json.loads(data.decode('utf-8'))
 
 # used soley for testing
-def bytesToB64(msg:bytes):
+def bytesToB64(msg:bytes) -> str:
     msg_str = base64.b64encode(msg).decode('utf-8')
     return msg_str
+
+def b64ToBytes(msg_str: str) -> bytes:
+    msg = base64.b64decode(msg_str.encode('utf-8'))
+    return msg
