@@ -185,7 +185,7 @@ static std::string base64Encode(const unsigned char* data, size_t len) {
     return encoded;
 }
 
-static std::string base64Decode(const std::string& input) {
+std::string base64Decode(const std::string& input) {
     BIO* b64 = BIO_new(BIO_f_base64());
     BIO* mem = BIO_new_mem_buf(input.data(), input.size());
     b64 = BIO_push(b64, mem);

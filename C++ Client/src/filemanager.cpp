@@ -31,7 +31,7 @@ static std::string base64Encode(const std::string& input) {
     return encoded;
 }
 
-static std::string base64Decode(const std::string& input) {
+static std::string fmBase64Decode(const std::string& input) {
     BIO* b64 = BIO_new(BIO_f_base64());
     BIO* mem = BIO_new_mem_buf(input.data(), input.size());
     b64 = BIO_push(b64, mem);
@@ -146,7 +146,7 @@ bool saveFileFromBase64(const std::string& filename, const std::string& base64Da
     std::string dir = getDownloadsDir();
     std::string path = dir + "/" + filename;
 
-    std::string decoded = base64Decode(base64Data);
+    std::string decoded = fmBase64Decode(base64Data);
     if (decoded.empty()) {
         std::cerr << "Failed to decode file data" << std::endl;
         return false;
