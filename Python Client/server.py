@@ -24,7 +24,6 @@ class peer:
     name: str
     ip: str
     port: str
-    private_key: str
 
 @dataclass
 class file:
@@ -75,7 +74,6 @@ def advertise_Service():
                     name.split(".")[0], #name
                     socket.inet_ntop(socket.AF_INET, info.addresses[0]), #IP
                     info.port, #port
-                    "" # private key
                 )
                 active_peers[updated_peer.name] = updated_peer
                 print(f"[NETWORK] Service {name} updated")
@@ -91,7 +89,6 @@ def advertise_Service():
                     name.split(".")[0], #name
                     socket.inet_ntop(socket.AF_INET, info.addresses[0]), #IP
                     info.port, #port
-                    "" # private key
                     )
                 active_peers[new_peer.name] = new_peer
                 print(f"[NETWORK] Service {name} added, ip: {socket.inet_ntop(socket.AF_INET, info.addresses[0])}, port: {info.port}")
