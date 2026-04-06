@@ -1,8 +1,51 @@
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.exceptions import InvalidSignature
 import os
 import json
 import base64
 import random
+
+
+def deriveK(shared_key_bytes:bytes, priv_key_int:int):
+    shared_key_int = int.from_bytes(shared_key_bytes, byteorder='big')
+    K_int = pow(shared_key_int, priv_key_int, prime)
+    return K_int.to_bytes((K_int.bit_length() + 7) // 8, byteorder='big')
+
+
+# --- RSA Signature verification --
+def bytesToPubRSA(pub_RSA:bytes):
+    return serialization.load_pem_public_key(pub_RSA)
+
+def bytesToPrivRSA(priv_RSA:bytes):
+    return serialization.load_pem_private_key(priv_RSA, password=None)
+
+def verifySign(pub_key_bytes:bytes, sign:bytes, msg:bytes):
+    pub_key = bytesToPubRSA(pub_key_bytes)
+    try:
+        pub_key.verify(
+            sign,
+            msg,
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.AUTO
+            ),
+            hashes.SHA256()
+        )
+    except InvalidSignature:
+        raise Exception("Signature Verification Failed")
+
+def makeSign(priv_key_bytes:bytes, msg:bytes):
+    priv_key = bytesToPrivRSA(priv_key_bytes)
+    return priv_key.sign(
+        msg,
+        padding.PSS(
+            mgf=padding.MGF1(hashes.SHA256()),
+            salt_length=padding.PSS.MAX_LENGTH
+        ),
+        hashes.SHA256()
+    )    
 
 # --- AES Utility functions ---
 def encryptAES(plaintext: bytes, key: bytes):
@@ -22,12 +65,12 @@ def TCP_Sender(client_sock, msg: bytes):
     client_sock.sendall(len(msg).to_bytes(4, byteorder='big'))
     client_sock.sendall(msg)
 
-def TCP_Reciever(client_sock):
-    raw_len = client_sock.recv(4)
+def TCP_Reciever(conn):
+    raw_len = conn.recv(4)
     msg_len = int.from_bytes(raw_len, byteorder='big')
     data = b''
     while len(data) < msg_len:
-        chunk = client_sock.recv(msg_len - len(data))
+        chunk = conn.recv(msg_len - len(data))
         if not chunk:
             raise ConnectionError("Socket closed before full message received")
         data += chunk
@@ -64,3 +107,17 @@ def genDHKeyPair():
     priv_key = random.randint(2, prime - 1)
     pub_key = pow(ALPHA, priv_key, prime)
     return priv_key, pub_key
+
+# --- PBKDF2-HMAC-SHA256 ---
+
+def hash_password(password, fromUser, toUser, iterations=600000):
+    if fromUser > toUser:
+        fromUser, toUser = toUser, fromUser
+    combined = fromUser + ":" + toUser
+    salt_hash = hashlib.sha256(combined.encode("utf-8")).digest()
+    salt = salt_hash[:16]  # first 16 bytes, matching Go
+    print("salt:")
+    print(salt)
+    return hashlib.pbkdf2_hmac(
+        "sha256", password.encode("utf-8"), salt, iterations
+    )

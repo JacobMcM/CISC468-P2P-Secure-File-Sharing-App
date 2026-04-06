@@ -15,7 +15,7 @@ passwords = {
     "General_access_HASH" : "", #TODO set before use, encode RSA_Private and files with pass matching hash
     "RSA_Private" : "",
     "RSA_Public" : "",
-    # other values are [peername]:[peer_RSA_public], representing that the public keys we know
+    # other values are [peername]:[peer_RSA_public], representing the public keys we know
 }
 
 def loadPass():
@@ -29,6 +29,21 @@ def savePass():
     global public_keys, fileList
     with open(PASS_PATH, "w") as f:
         json.dump(passwords, f, indent=4)
+
+def getPubRSA():
+    return util.b64ToBytes(passwords["RSA_Public"])
+
+def getPrivRSA():
+    return util.b64ToBytes(passwords["RSA_Private"])
+
+def addPeerPubRSA(name, RSA_bytes):
+    passwords[name] = util.bytesToB64(RSA_bytes)
+    savePass()
+
+def getPeerPubRSA(name):
+    peerRSA = passwords.get(name)
+    if peerRSA == None or peerRSA == "": return None
+    return util.b64ToBytes(peerRSA)
 
 def genRSA():
     global passwords

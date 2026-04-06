@@ -185,7 +185,7 @@ static std::string base64Encode(const unsigned char* data, size_t len) {
     return encoded;
 }
 
-static std::string base64Decode(const std::string& input) {
+std::string base64Decode(const std::string& input) {
     BIO* b64 = BIO_new(BIO_f_base64());
     BIO* mem = BIO_new_mem_buf(input.data(), input.size());
     b64 = BIO_push(b64, mem);
@@ -317,16 +317,6 @@ static void initDHParams() {
         s_dhGenerator = BN_new();
         BN_set_word(s_dhGenerator, 2); // α = 2
     }
-}
-
-const BIGNUM* getDHPrime() {
-    initDHParams();
-    return s_dhPrime;
-}
-
-const BIGNUM* getDHGenerator() {
-    initDHParams();
-    return s_dhGenerator;
 }
 
 DHKeyPair generateDHKeyPair() {

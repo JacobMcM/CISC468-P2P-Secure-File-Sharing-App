@@ -60,6 +60,9 @@ std::string exportDHPublicKey(const DHKeyPair& dh);
 // Export DH public key as raw big-endian bytes (for EKE encryption)
 std::string exportDHPublicKeyRaw(const DHKeyPair& dh);
 
+// Decode a base64 string to its raw bytes
+std::string base64Decode(const std::string& input);
+
 // Derive a 32-byte AES-256 session key from our private exponent and peer's public key (hex)
 std::string deriveSessionKey(const DHKeyPair& myDH, const std::string& peerDHPublicHex);
 
@@ -68,10 +71,6 @@ std::string deriveSessionKeyFromRaw(const DHKeyPair& myDH, const std::string& pe
 
 // Free the DH key pair
 void freeDHKeyPair(DHKeyPair& dh);
-
-// Get the RFC 3526 Group 14 prime p and generator α=2
-const BIGNUM* getDHPrime();
-const BIGNUM* getDHGenerator();
 
 // --- AES-256-GCM ---
 
