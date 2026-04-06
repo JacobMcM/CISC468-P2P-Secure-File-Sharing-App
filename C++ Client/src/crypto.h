@@ -69,10 +69,6 @@ std::string deriveSessionKeyFromRaw(const DHKeyPair& myDH, const std::string& pe
 // Free the DH key pair
 void freeDHKeyPair(DHKeyPair& dh);
 
-// Get the RFC 3526 Group 14 prime p and generator α=2
-const BIGNUM* getDHPrime();
-const BIGNUM* getDHGenerator();
-
 // --- AES-256-GCM ---
 
 // Encrypt plaintext with AES-256-GCM. Returns base64(IV + ciphertext + tag)

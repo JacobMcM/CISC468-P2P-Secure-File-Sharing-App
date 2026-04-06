@@ -221,7 +221,6 @@ int main(int argc, char* argv[]) {
             try {
                 // Try to parse as JSON -- if it fails, it's raw ciphertext
                 json msg;
-                bool wasEncrypted = false;
                 try {
                     msg = json::parse(raw);
                 } catch (...) {
@@ -242,7 +241,6 @@ int main(int argc, char* argv[]) {
                         continue;
                     }
                     msg = json::parse(decrypted);
-                    wasEncrypted = true;
                 }
 
                 std::string type = msg["type"];

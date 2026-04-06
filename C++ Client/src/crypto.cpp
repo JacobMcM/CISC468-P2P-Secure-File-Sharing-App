@@ -319,16 +319,6 @@ static void initDHParams() {
     }
 }
 
-const BIGNUM* getDHPrime() {
-    initDHParams();
-    return s_dhPrime;
-}
-
-const BIGNUM* getDHGenerator() {
-    initDHParams();
-    return s_dhGenerator;
-}
-
 DHKeyPair generateDHKeyPair() {
     initDHParams();
 
