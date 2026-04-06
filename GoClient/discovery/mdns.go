@@ -2,9 +2,14 @@ package discovery
 
 import (
 	"context"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"log"
-	"net"
+	"os"
 	"sync"
 	"time"
 
@@ -18,6 +23,15 @@ type Peer struct {
 	TXT      []string
 	FileList []string
 	LastSeen time.Time
+}
+
+type PeerPubKeyRecord struct {
+	Name      string `json:"name"`
+    PublicKey string `json:"public_key"`
+}
+
+type PeerPubKeyDB struct {
+    PeerPubKeys []PeerPubKeyRecord `json:"peer_pub_keys"`
 }
 
 var (
@@ -41,18 +55,18 @@ func RegisterMdnsServer(name string, port int) *zeroconf.Server {
 
 	log.Printf("Advertising service %s on port %d\n", name, port)
 
-	// REMOVE LATER
-	PeersMu.Lock()
-	peer := &Peer{
-		Name:     "Fake1",
-		IP:       "123.456.78.9",
-		Port:     1000,
-		TXT:      []string{"somefile.txt"},
-		FileList: []string{"somefile.txt", "file2.txt", "file3.txt"},
-		LastSeen: time.Now(),
-	}
-	Peers[peer.Name] = peer;
-	PeersMu.Unlock()
+	// // REMOVE LATER
+	// PeersMu.Lock()
+	// peer := &Peer{
+	// 	Name:     "Fake1",
+	// 	IP:       "123.456.78.9",
+	// 	Port:     1000,
+	// 	TXT:      []string{"somefile.txt"},
+	// 	FileList: []string{"somefile.txt", "file2.txt", "file3.txt"},
+	// 	LastSeen: time.Now(),
+	// }
+	// Peers[peer.Name] = peer;
+	// PeersMu.Unlock()
 
 	return server
 }
@@ -66,9 +80,11 @@ func StartPeerDiscovery(ctx context.Context, selfName string) {
 	entries := make(chan *zeroconf.ServiceEntry)
 	go func(results <-chan *zeroconf.ServiceEntry) {
 		for entry := range results {
-			if entry.Instance == selfName {
-				continue
-			}
+			log.Printf("Discovered: %s at %s:%d\n", entry.Instance, entry.AddrIPv4, entry.Port)
+
+			// if entry.Instance == selfName {
+			// 	continue
+			// }
 			if len(entry.AddrIPv4) == 0 {
 				continue
 			}
@@ -134,32 +150,52 @@ func StartPeerLogging() {
 	}
 }
 
-func StartHeartbeat(ctx context.Context) {
-    go func() {
-        for {
-            select {
-            case <-ctx.Done():
-                return
-            case <-time.After(10 * time.Second):
-                PeersMu.Lock()
-                for name, peer := range Peers {
-                    if !pingPeer(peer) {
-                        delete(Peers, name)
-                    } else {
-                        peer.LastSeen = time.Now()
-                    }
-                }
-                PeersMu.Unlock()
-            }
+func LoadPeerKeys(path string) (map[string]*rsa.PublicKey, error) {
+    data, err := os.ReadFile(path)
+    if err != nil {
+        return nil, err
+    }
+
+    var peerPubKeyDB PeerPubKeyDB
+    if err := json.Unmarshal(data, &peerPubKeyDB); err != nil {
+        return nil, err
+    }
+
+    keys := make(map[string]*rsa.PublicKey)
+    for _, peer := range peerPubKeyDB.PeerPubKeys {
+        block, _ := pem.Decode([]byte(peer.PublicKey))
+        pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+        if err != nil {
+            return nil, fmt.Errorf("peer %s: invalid public key: %w", peer.Name, err)
         }
-    }()
+        keys[peer.Name] = pub.(*rsa.PublicKey)
+    }
+
+    return keys, nil
 }
 
-func pingPeer(peer *Peer) bool {
-    conn, err := net.DialTimeout("tcp", fmt.Sprintf("%s:%d", peer.IP, peer.Port), 2*time.Second)
+func AddPeerRecord(path, name, b64Key string) error {
+    der, err := base64.StdEncoding.DecodeString(b64Key)
     if err != nil {
-        return false
+        return err
     }
-    conn.Close()
-    return true
+    if _, err := x509.ParsePKIXPublicKey(der); err != nil {
+        return fmt.Errorf("invalid public key: %w", err)
+    }
+
+    pemStr := string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}))
+
+    var peerPubKeyDB PeerPubKeyDB
+    data, err := os.ReadFile(path)
+    if err != nil && !os.IsNotExist(err) {
+        return err
+    }
+    if len(data) > 0 {
+        json.Unmarshal(data, &peerPubKeyDB)
+    }
+
+    peerPubKeyDB.PeerPubKeys = append(peerPubKeyDB.PeerPubKeys, PeerPubKeyRecord{Name: name, PublicKey: pemStr})
+
+    out, _ := json.MarshalIndent(peerPubKeyDB, "", "  ")
+    return os.WriteFile(path, out, 0644)
 }
