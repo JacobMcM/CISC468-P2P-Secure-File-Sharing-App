@@ -128,44 +128,41 @@ def connect(peer: server.peer):
 # Runs EKE Session establishment, confirms peer private_key, returns Session key K
 def establishFirstConnection(peer: server.peer, client_sock):
     tempW = "JacobLiam"    
-    passwordKey = hash_password(tempW, server.localName, peer.name)
+    passwordKey = util.hash_password(tempW, server.localName, peer.name)
     
     print("Pass hashed")
     util.bytesToB64(passwordKey)
 
     priv_key, pub_key = util.genDHKeyPair()
-    plaintext = pub_key.to_bytes((pub_key.bit_length() + 7) // 8, byteorder='big')
+    pub_key_bytes = pub_key.to_bytes((pub_key.bit_length() + 7) // 8, byteorder='big')
 
     print("plaintext generated")
 
     # --- Encrypt ---
-    c1 = util.encryptAES(plaintext, passwordKey)
+    c1 = util.encryptAES(pub_key_bytes, passwordKey)
 
     eke1 = models.buildEKE1(server.localName, c1)    
     print("eke1: " + eke1)
 
-    util.TCP_Sender(eke1.encode())
+    util.TCP_Sender(client_sock, eke1.encode())
 
     eke2 = {}       
     eke2 = util.TCP_Reciever(client_sock)
     print(eke2)
-    
     if eke2["type"] != "EKE_2": raise Exception("Expected EKE_2")
     if eke2["from"] != peer.name: raise Exception("Expected different EKE_2 sender")
-    if not eke2["c2"]: raise Exception("C2 is undefined")
-    if not eke2["c3"]: raise Exception("C3 is undefined")
 
-    shared_key = util.decryptAES(eke2["c2"], passwordKey)
+    shared_key = models.getEncryptedProp(eke2, "c2", passwordKey)
 
     shared_key_int = int.from_bytes(shared_key, byteorder='big')
-    K_int = pow(shared_key_int, priv_key, prime)
+    K_int = pow(shared_key_int, priv_key, util.prime)
     K = K_int.to_bytes((K_int.bit_length() + 7) // 8, byteorder='big')
 
     print("K:" + str(K_int))
-    challenge_b = util.decryptAES(eke2["c3"], K)
+    challenge_b = models.getEncryptedProp(eke2, "c3", K)
 
     challenge_a = os.urandom(16)
-    pub_RSA = util.b64ToBytes(storage.passwords["RSA_Public"])
+    pub_RSA = storage.getPubRSA()
     challenge_ab = challenge_a + challenge_b + pub_RSA
 
     c4 = util.encryptAES(challenge_ab, K)
@@ -173,23 +170,21 @@ def establishFirstConnection(peer: server.peer, client_sock):
     eke3 = models.buildEKE3(server.localName, c4)    
     print("eke3: " + eke3)
 
-    util.TCP_Sender(eke3.encode())
+    util.TCP_Sender(client_sock, eke3.encode())
 
     eke4 = {}       
     eke4 = util.TCP_Reciever(client_sock)
     print(eke4)
 
-    if eke2["type"] != "EKE_4": raise Exception("Expected EKE_4")
-    if eke2["from"] != peer.name: raise Exception("Expected different EKE_4 sender")
-    if not eke2["c5"]: raise Exception("C5 is undefined")
+    if eke4["type"] != "EKE_4": raise Exception("Expected EKE_4")
+    if eke4["from"] != peer.name: raise Exception("Expected different EKE_4 sender")
 
-    c5 = util.decryptAES(eke2["c5"], K)
+    c5 = models.getEncryptedProp(eke4, "c5", K)    
     recieved_challenge_a = c5[:16]
-    peer_pub_RSA = c5[16:]
     if challenge_a != recieved_challenge_a: raise Exception("Key Establishment challenge failed")
-
-    storage.passwords[peer.name] = util.bytesToB64(peer_pub_RSA)
-    storage.savePass()   
+    
+    peer_pub_RSA = c5[16:]
+    storage.addPeerPubRSA(peer.name, peer_pub_RSA)  
 
     return K
 
@@ -205,18 +200,6 @@ def reciever(client_sock):
         data += chunk
     
     return json.loads(data.decode('utf-8'))
-
-def hash_password(password, fromUser, toUser, iterations=600000):
-    if fromUser > toUser:
-        fromUser, toUser = toUser, fromUser
-    combined = fromUser + ":" + toUser
-    salt_hash = hashlib.sha256(combined.encode("utf-8")).digest()
-    salt = salt_hash[:16]  # first 16 bytes, matching Go
-    print("salt:")
-    print(salt)
-    return hashlib.pbkdf2_hmac(
-        "sha256", password.encode("utf-8"), salt, iterations
-    )
 
 # wrapper for the processes which can be performed
 def runner():

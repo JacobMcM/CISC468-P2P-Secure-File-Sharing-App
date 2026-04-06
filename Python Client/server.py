@@ -7,6 +7,9 @@ import json
 from dataclasses import dataclass
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
+import util
+import models
+import storage
 
 KILL_THREADS = False
 
@@ -103,6 +106,129 @@ def advertise_Service():
     zeroconf.unregister_service(info)
     zeroconf.close()
 
+# -------------------------------
+# Server Part
+# -------------------------------
+def start_server():
+    server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_sock.bind((HOST, PORT))
+    server_sock.listen()
+    server_sock.settimeout(5)  # 5 second timeout
+    print(f"[SERVER] Listening on {HOST}:{PORT}\n")
+
+    K: bytes | None = None
+
+    
+    while not KILL_THREADS:
+        try:
+            sock, addr = server_sock.accept()
+
+            msg = util.TCP_Reciever(sock)
+            msgType = msg.get('type')            
+
+            if msgType == None or msgType == "":
+                #TODO return error
+                K = None
+                sock.close()
+            
+            match msgType:
+                case "EKE_1":
+                    K = establishFirstConnection(msg,sock)
+                case "STS_1":
+                    K = establishNthConnection(msg,sock)
+                case "FILE_LIST_REQUEST":
+                    print(msgType)
+                    #TODO process Key Rotation
+                case "FILE_REQUEST":
+                    print(msgType)
+                    #TODO process Key Rotation
+                case "CONSENT_REQUEST":
+                    print(msgType)
+                    #TODO process Key Rotation
+                case "FILE_TRANSFER":
+                    print(msgType)
+                    #TODO process Key Rotation
+                case "KEY_ROTATION":
+                    print(msgType)
+                    #TODO process Key Rotation
+                case _:
+                    print(msgType)
+                    #TODO send error msg
+
+            #data = conn.recv(1024)
+            #request = deserialize_request(data)
+
+            ##match request.action:
+            ##    case "List":
+            ##    case "connect":
+            #print(f"[SERVER] Received from {addr}: {data.decode()}\n")             
+
+            #conn.sendall(f"Echo: {data.decode()}".encode())
+            #conn.close()
+            #print(f"[SERVER] Connection closed: {addr}\n")
+        except socket.timeout:
+            if KILL_THREADS:
+                break
+        except:
+            break
+    server_sock.close()
+
+def establishFirstConnection(eke1, sock):
+    tempW = "JacobLiam"
+
+    # establish pair-wise derived from w key
+    sender = eke1.get("from")
+    if not sender: raise Exception("From is undefiend")
+    passwordKey = util.hash_password(tempW, localName, sender)
+    
+    # Generate DH key pair
+    priv_key, pub_key = util.genDHKeyPair()
+
+    # establish shared key K
+    shared_key = models.getEncryptedProp(eke1, "c1", passwordKey)
+    shared_key_int = int.from_bytes(shared_key, byteorder='big')
+    K_int = pow(shared_key_int, priv_key, util.prime)
+    K = K_int.to_bytes((K_int.bit_length() + 7) // 8, byteorder='big')
+
+    # encrypt public DH key as c2
+    pub_key_bytes = pub_key.to_bytes((pub_key.bit_length() + 7) // 8, byteorder='big')
+    c2 = util.encryptAES(pub_key_bytes, passwordKey)
+
+    # encrypt challenge b
+    challenge_b = os.urandom(16)
+    c3 = util.encryptAES(challenge_b, K)
+
+    # build & send eke2
+    eke2 = models.buildEKE2(localName, c2, c3)
+    util.TCP_Sender(sock, eke2.encode())
+
+    # await and recieve eke3
+    eke3 = {}       
+    eke3 = util.TCP_Reciever(client_sock)
+    print(eke3)
+    if eke3["type"] != "EKE_3": raise Exception("Expected EKE_3")
+    if eke3["from"] != sender: raise Exception("Expected different EKE_3 sender")
+
+    # confirm key establishment via challenge
+    challenge_ab = models.getEncryptedProp(eke3, "c4", K)
+    challenge_a =  challenge_ab[:16]
+    recieved_challenge_b = challenge_ab[16:32]
+    if challenge_b != recieved_challenge_b: raise Exception("Key Establishment challenge failed")
+
+    #
+    peer_pub_RSA = challenge_ab[32:]
+    storage.addPeerPubRSA(sender, peer_pub_RSA)
+
+
+    # encrypt challenge a and public RSA
+    pub_RSA = storage.getPubRSA()
+    c5 = util.encryptAES(challenge_a + pub_RSA, K)
+
+    # build & send eke5
+    eke5 = models.buildEKE4(localName, c5)
+    util.TCP_Sender(sock, eke5.encode())
+        
+    return K
 
 def kill_threads():
     global KILL_THREADS

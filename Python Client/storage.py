@@ -30,6 +30,13 @@ def savePass():
     with open(PASS_PATH, "w") as f:
         json.dump(passwords, f, indent=4)
 
+def getPubRSA():
+    return util.b64ToBytes(passwords["RSA_Public"])
+
+def addPeerPubRSA(name, RSA_bytes):
+    passwords[name] = util.bytesToB64(RSA_bytes)
+    savePass()
+
 def genRSA():
     global passwords
     # -- gen key ---

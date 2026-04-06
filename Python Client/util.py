@@ -64,3 +64,17 @@ def genDHKeyPair():
     priv_key = random.randint(2, prime - 1)
     pub_key = pow(ALPHA, priv_key, prime)
     return priv_key, pub_key
+
+# --- PBKDF2-HMAC-SHA256 ---
+
+def hash_password(password, fromUser, toUser, iterations=600000):
+    if fromUser > toUser:
+        fromUser, toUser = toUser, fromUser
+    combined = fromUser + ":" + toUser
+    salt_hash = hashlib.sha256(combined.encode("utf-8")).digest()
+    salt = salt_hash[:16]  # first 16 bytes, matching Go
+    print("salt:")
+    print(salt)
+    return hashlib.pbkdf2_hmac(
+        "sha256", password.encode("utf-8"), salt, iterations
+    )

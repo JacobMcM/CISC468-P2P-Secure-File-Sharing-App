@@ -6,6 +6,14 @@ import util
 
 # --- DH-EKE messages ---
 
+# all encryted byte messages are first encrypted, then converted into b64
+# This inverts that process + error checking
+def getEncryptedProp(msg, prop: str, key):
+    prop_b64 = msg.get(prop)
+    if not prop_b64: raise Exception(prop + " is undefined")
+    prop_bytes = util.b64ToBytes(prop_b64)
+    return util.decryptAES(prop_bytes, key)
+
 def buildEKE1(sender: str, c1_bytes: bytes):
     c1 = util.bytesToB64(c1_bytes)
     eke1 = { "type":"EKE_1", "from":sender,"c1":c1}
