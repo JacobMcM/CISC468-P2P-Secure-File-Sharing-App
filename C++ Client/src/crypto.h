@@ -60,6 +60,9 @@ std::string exportDHPublicKey(const DHKeyPair& dh);
 // Export DH public key as raw big-endian bytes (for EKE encryption)
 std::string exportDHPublicKeyRaw(const DHKeyPair& dh);
 
+// Decode a base64 string to its raw bytes
+std::string base64Decode(const std::string& input);
+
 // Derive a 32-byte AES-256 session key from our private exponent and peer's public key (hex)
 std::string deriveSessionKey(const DHKeyPair& myDH, const std::string& peerDHPublicHex);
 

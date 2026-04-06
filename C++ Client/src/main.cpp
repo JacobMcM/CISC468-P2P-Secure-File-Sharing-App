@@ -372,13 +372,15 @@ int main(int argc, char* argv[]) {
                         // Generate our DH key pair
                         DHKeyPair myDH = generateDHKeyPair();
                         std::string myDHPubB64 = exportDHPublicKey(myDH);
+                        std::string myDHPubRaw = exportDHPublicKeyRaw(myDH);
+                        std::string peerDHPubRaw = base64Decode(peerDHPubB64);
 
                         // Derive session key K
                         std::string K = deriveSessionKey(myDH, peerDHPubB64);
                         if (K.empty()) { freeDHKeyPair(myDH); break; }
 
-                        // Sign: sig_Bob(myDH || peerDH)
-                        std::string sigData = myDHPubB64 + peerDHPubB64;
+                        // Sign: sig_Bob(myDH || peerDH) over RAW dh bytes
+                        std::string sigData = myDHPubRaw + peerDHPubRaw;
                         std::string sig = rsaPssSign(myKeys, sigData);
                         std::string encSig = aesGcmEncrypt(K, sig);
 
@@ -390,9 +392,9 @@ int main(int argc, char* argv[]) {
                         if (raw3.empty()) { freeDHKeyPair(myDH); break; }
                         json msg3 = parseMessage(raw3);
 
-                        // Verify peer's signature
+                        // Verify peer's signature over RAW bytes: peerDH || myDH
                         std::string peerSig = aesGcmDecrypt(K, msg3["encrypted_signature"].get<std::string>());
-                        std::string peerSigData = peerDHPubB64 + myDHPubB64;
+                        std::string peerSigData = peerDHPubRaw + myDHPubRaw;
                         if (!rsaPssVerify(peerRSAKey, peerSigData, peerSig)) {
                             std::cerr << "  STS FAILED: signature verification failed" << std::endl;
                             freeDHKeyPair(myDH);
@@ -610,6 +612,7 @@ int main(int argc, char* argv[]) {
 
                 DHKeyPair myDH = generateDHKeyPair();
                 std::string myDHPubB64 = exportDHPublicKey(myDH);
+                std::string myDHPubRaw = exportDHPublicKeyRaw(myDH);
 
                 // Send STS_1
                 sendMessage(sock, buildSTS1(myName, myDHPubB64));
@@ -626,11 +629,12 @@ int main(int argc, char* argv[]) {
                     }
 
                     std::string peerDHPubB64 = resp["dh_public_key"].get<std::string>();
+                    std::string peerDHPubRaw = base64Decode(peerDHPubB64);
                     std::string K = deriveSessionKey(myDH, peerDHPubB64);
 
-                    // Verify peer's signature
+                    // Verify peer's signature over RAW bytes: peerDH || myDH
                     std::string peerSig = aesGcmDecrypt(K, resp["encrypted_signature"].get<std::string>());
-                    std::string peerSigData = peerDHPubB64 + myDHPubB64;
+                    std::string peerSigData = peerDHPubRaw + myDHPubRaw;
 
                     EVP_PKEY* peerRSAKey = nullptr;
                     {
@@ -644,8 +648,8 @@ int main(int argc, char* argv[]) {
                     }
                     std::cout << "Peer identity verified (STS signature OK)" << std::endl;
 
-                    // Send STS_3: our signature
-                    std::string mySigData = myDHPubB64 + peerDHPubB64;
+                    // Send STS_3: our signature over RAW bytes (mine || peer)
+                    std::string mySigData = myDHPubRaw + peerDHPubRaw;
                     std::string mySig = rsaPssSign(myKeys, mySigData);
                     std::string encSig = aesGcmEncrypt(K, mySig);
                     sendMessage(sock, buildSTS3(myName, encSig));
