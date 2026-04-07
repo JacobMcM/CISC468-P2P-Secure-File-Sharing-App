@@ -237,6 +237,8 @@ def runner():
 
     # Load RSA values
     storage.loadRSA()
+    if (storage.getPubRSA() == None or len(storage.getPubRSA()) == 0):
+        storage.genRSA()
 
     while True:
         print("peers in network")
@@ -255,26 +257,6 @@ def runner():
             continue
         else:
             connect(server.active_peers[i])
-
-
-    # Call genFilelist
-
-    # create empty known-filelist
-
-    # list all available options
-    # list all known files
-    # prompt user to action
-    # if "request file list"
-    #    Prompt for who
-    #    Call getFileList(Who)
-    #    add files to knownfilelist
-
-    # if "request file"
-    #    Prompt for who, and what
-    #    Call getFile(Who (user), What (file from known-filelist))
-
-    # prompt user for
-
 
 if __name__ == "__main__":
     runner()
