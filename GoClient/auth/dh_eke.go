@@ -69,8 +69,9 @@ func RunClientSideDhEKE(conn *session.FramedConn, password, selfName, peerName s
 
 	receivedRA := P5[:16]
 	peerPubKeyB64 := P5[16:]
+	fmt.Printf("\n\n\n\nPUBKEY: %s\n\n\n\n", string(peerPubKeyB64))
 
-	peerPubKey, err := crypto.Base64ToPublicKey(string(peerPubKeyB64)); if err != nil {
+	peerPubKey, err := crypto.PemToPublicKey(string(peerPubKeyB64)); if err != nil {
 		return nil, err
 	}
 
@@ -130,9 +131,9 @@ func RunServerSideDhEKE(conn *session.FramedConn, init_message protocol.EKE1Mess
 		return nil, fmt.Errorf("Challenge validation failed, connection with peer dropped")
 	}
 
-	peerPubKeyB64 := P4_bytes[32:]
+	peerPubKeyPEM := P4_bytes[32:]
 
-	peerPubKey, err := crypto.Base64ToPublicKey(string(peerPubKeyB64)); if err != nil {
+	peerPubKey, err := crypto.PemToPublicKey(string(peerPubKeyPEM)); if err != nil {
 		return nil, err
 	}
 

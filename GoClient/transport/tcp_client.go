@@ -143,7 +143,7 @@ func RunSecureClientSession(session *session.SecureSession) {
 				correspondingPubKey := peerPubKeys[originalOwner]
 				fmt.Printf("Verifying signature using %s's public key", originalOwner)
 
-				err = crypto.RsaPssVerify(correspondingPubKey, fileTransferMessage.Data, string(fileTransferMessage.Signature)); if err != nil {
+				err = crypto.RsaPssVerify(correspondingPubKey, fileTransferMessage.Data, fileTransferMessage.Signature); if err != nil {
 					fmt.Println("[Security] File signature verification failed! File will be discarded.")
 					continue
 				}

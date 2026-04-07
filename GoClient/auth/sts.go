@@ -4,27 +4,32 @@ import (
 	"GoClient/crypto"
 	"GoClient/protocol"
 	"GoClient/session"
+	"fmt"
 )
 
 func RunClientSideSTS(conn *session.FramedConn, selfName, peerName string) (*session.SecureSession, error) {
 	s, err := crypto.NewStsState(peerName); if err != nil {
 		return nil, err
 	}
+	fmt.Println("STS STATE INIT")
 
 	myDhValue, err := s.BuildSTSMessage1Values(); if err != nil {
 		return nil, err
 	}
 
+	fmt.Println("DH INIT")
 	stsMessage1, err := protocol.BuildSTS1(selfName, myDhValue); if err != nil {
 		return nil, err
 	}
 
 	conn.Send(stsMessage1)
 
+	fmt.Println("M1 SENT")
 	sts2raw, err := conn.Recv(); if err != nil {
 		return nil, err
 	}
 
+	fmt.Println("M2 RECV")
 	stsMessage2, err := protocol.ParseMessage[protocol.STS2Message](sts2raw); if err != nil {
 		return nil, err
 	}
@@ -52,6 +57,7 @@ func RunClientSideSTS(conn *session.FramedConn, selfName, peerName string) (*ses
 
 	conn.Send(stsMessage3)
 
+	fmt.Println("M3 SENT")
 	return session.NewSecureSession(conn, s.K, peerName, selfName, s.PeerPubKey), nil
 }
 
@@ -71,6 +77,8 @@ func RunServerSideSTS(conn *session.FramedConn, init_message protocol.STS1Messag
 	stsMessage2, err := protocol.BuildSTS2(selfName, myDhValue, encryptedSignature); if err != nil {
 		return nil, err
 	}
+
+	fmt.Printf("K: %s", s.K)
 
 	conn.Send(stsMessage2)
 

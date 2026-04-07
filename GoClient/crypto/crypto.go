@@ -153,23 +153,18 @@ var pssOptions = &rsa.PSSOptions{
     Hash:       crypto.SHA256,
 }
 
-func RsaPssSign(privKey *rsa.PrivateKey, data []byte) (string, error) {
+func RsaPssSign(privKey *rsa.PrivateKey, data []byte) ([]byte, error) {
     hash := sha256.Sum256(data)
     sig, err := rsa.SignPSS(rand.Reader, privKey, crypto.SHA256, hash[:], pssOptions)
     if err != nil {
-        return "", fmt.Errorf("failed to sign: %w", err)
+        return nil, fmt.Errorf("failed to sign: %w", err)
     }
-    return base64.StdEncoding.EncodeToString(sig), nil
+    return sig, nil
 }
 
-func RsaPssVerify(pubKey *rsa.PublicKey, data []byte, b64Sig string) error {
-    sigBytes, err := base64.StdEncoding.DecodeString(b64Sig)
-    if err != nil {
-        return fmt.Errorf("invalid base64 signature: %w", err)
-    }
-
+func RsaPssVerify(pubKey *rsa.PublicKey, data []byte, sig []byte) error {
     hash := sha256.Sum256(data)
-    return rsa.VerifyPSS(pubKey, crypto.SHA256, hash[:], sigBytes, pssOptions)
+    return rsa.VerifyPSS(pubKey, crypto.SHA256, hash[:], sig, pssOptions)
 }
 
 func publicKeyToBase64(pub *rsa.PublicKey) (string, error) {
@@ -238,7 +233,7 @@ func NewStsState(peerName string) (*StsState, error) {
 
 func (s *StsState) VerifyReceivedSignature(peerDhValue []byte, signature []byte) error {
 	data := append(peerDhValue, BigIntToBytes(s.myDhValue)...)
-    return RsaPssVerify(s.PeerPubKey, data, string(signature))
+    return RsaPssVerify(s.PeerPubKey, data, signature)
 }
 
 func (s *StsState) BuildSTSMessage1Values() ([]byte, error) {
@@ -255,6 +250,8 @@ func (s *StsState) BuildSTSMessageValues(peerDhValue []byte) ([]byte, []byte, er
     signature, err := RsaPssSign(s.myPrivKey, concatenatedDhValues); if err != nil {
 		return nil, nil, err
 	}
+
+	fmt.Printf("SIG: %s", signature)
 
 	if s.K == nil {
 		return nil, nil, fmt.Errorf("Attempted to build STS Message 2 without K set")
@@ -347,7 +344,6 @@ func (p *PakeState) GenerateRA() {
 
 func (p *PakeState) DeriveK(peerDhValue []byte) {
 	peerDhBigInt, _ := BytesToBigInt(peerDhValue)
-	// Handle Later
 	myExp := p.b
 	fmt.Printf("MY EXP: %s", myExp)
 	if p.b == nil {
@@ -375,21 +371,49 @@ func (p *PakeState) BuildC2_C3() ([]byte, []byte) {
 	return C2, C3
 }
 
+func PemToPublicKey(pemStr string) (*rsa.PublicKey, error) {
+    block, _ := pem.Decode([]byte(pemStr))
+    if block == nil {
+        return nil, fmt.Errorf("failed to decode PEM block")
+    }
+    pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+    if err != nil {
+        return nil, err
+    }
+    rsaPub, ok := pub.(*rsa.PublicKey)
+    if !ok {
+        return nil, fmt.Errorf("not an RSA public key")
+    }
+    return rsaPub, nil
+}
+
+func publicKeyToPEM(pub rsa.PublicKey) (string, error) {
+    der, err := x509.MarshalPKIXPublicKey(&pub)
+    if err != nil {
+        return "", err
+    }
+    block := &pem.Block{
+        Type:  "PUBLIC KEY",
+        Bytes: der,
+    }
+    return string(pem.EncodeToMemory(block)), nil
+}
+
 func (p *PakeState) BuildC4(rB []byte) ([]byte, error) {
 	P4 := append(p.rA, rB...);
-	myBase64PubKey, err := publicKeyToBase64(p.myPubKey); if err != nil {
-		return nil, err
-	}
-	P4 = append(P4, []byte(myBase64PubKey)...)
+	myPEMPubKey, _ := publicKeyToPEM(*p.myPubKey)
+
+	P4 = append(P4, []byte(myPEMPubKey)...)
+	fmt.Println("HERERERERERE")
+	fmt.Println(string(myPEMPubKey))
 	C4, _ := p.EncryptK(P4)
 	return C4, nil
 }
 
 func (p *PakeState) BuildC5(recveivedRA []byte) ([]byte, error) {
-	myBase64PubKey, err := publicKeyToBase64(p.myPubKey); if err != nil {
-		return nil, err
-	}
-	P5 := append(recveivedRA, []byte(myBase64PubKey)...);
+
+	myPEMPubKey, _ := publicKeyToPEM(*p.myPubKey)
+	P5 := append(recveivedRA, []byte(myPEMPubKey)...);
 	C5, err := p.EncryptK(P5); if err != nil {
 		return nil, err
 	}

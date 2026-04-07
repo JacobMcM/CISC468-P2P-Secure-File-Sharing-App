@@ -1,3 +1,4 @@
 .env
 venv
-keys
+keys/private.pem
+keys/public.pem
