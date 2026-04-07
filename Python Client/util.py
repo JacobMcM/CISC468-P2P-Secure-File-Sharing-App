@@ -6,12 +6,14 @@ import os
 import json
 import base64
 import random
+import hashlib
 
 
 def deriveK(shared_key_bytes:bytes, priv_key_int:int):
     shared_key_int = int.from_bytes(shared_key_bytes, byteorder='big')
     K_int = pow(shared_key_int, priv_key_int, prime)
-    return K_int.to_bytes((K_int.bit_length() + 7) // 8, byteorder='big')
+    k_bytes = K_int.to_bytes((K_int.bit_length() + 7) // 8, byteorder='big')
+    return hashlib.sha256(k_bytes).digest()  # always exactly 32 bytes
 
 
 # --- RSA Signature verification --
@@ -29,7 +31,7 @@ def verifySign(pub_key_bytes:bytes, sign:bytes, msg:bytes):
             msg,
             padding.PSS(
                 mgf=padding.MGF1(hashes.SHA256()),
-                salt_length=padding.PSS.AUTO
+                salt_length=hashes.SHA256().digest_size
             ),
             hashes.SHA256()
         )
@@ -42,7 +44,7 @@ def makeSign(priv_key_bytes:bytes, msg:bytes):
         msg,
         padding.PSS(
             mgf=padding.MGF1(hashes.SHA256()),
-            salt_length=padding.PSS.MAX_LENGTH
+            salt_length=hashes.SHA256().digest_size
         ),
         hashes.SHA256()
     )    
@@ -57,7 +59,7 @@ def encryptAES(plaintext: bytes, key: bytes):
 def decryptAES(msg: bytes, key: bytes):
     aesgcm = AESGCM(key)
     nonce = msg[:12]
-    ciphertext = msg[12]    
+    ciphertext = msg[12:]    
     return aesgcm.decrypt(nonce, ciphertext, None)
 
 # --- TCP utility functions ---

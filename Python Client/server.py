@@ -79,10 +79,8 @@ def advertise_Service():
                     info.port, #port
                 )
                 active_peers[updated_peer.name] = updated_peer
-                print(f"[NETWORK] Service {name} updated")
 
         def remove_service(self, zc: Zeroconf, type_: str, name: str) -> None:
-            print(f"[NETWORK] Service {name} removed")
             active_peers.pop(name.split(",")[0])
 
         def add_service(self, zc: Zeroconf, type_: str, name: str) -> None:
@@ -94,7 +92,6 @@ def advertise_Service():
                     info.port, #port
                     )
                 active_peers[new_peer.name] = new_peer
-                print(f"[NETWORK] Service {name} added, ip: {socket.inet_ntop(socket.AF_INET, info.addresses[0])}, port: {info.port}")
 
 
     listener = MyListener()
@@ -155,17 +152,6 @@ def start_server():
                     print(msgType)
                     #TODO send error msg
 
-            #data = conn.recv(1024)
-            #request = deserialize_request(data)
-
-            ##match request.action:
-            ##    case "List":
-            ##    case "connect":
-            #print(f"[SERVER] Received from {addr}: {data.decode()}\n")             
-
-            #conn.sendall(f"Echo: {data.decode()}".encode())
-            #conn.close()
-            #print(f"[SERVER] Connection closed: {addr}\n")
         except socket.timeout:
             if KILL_THREADS:
                 break
@@ -174,12 +160,14 @@ def start_server():
     server_sock.close()
 
 def establishFirstConnection(eke1, sock):
-    tempW = "JacobLiam"
-
+    
     # establish pair-wise password derived from w key
     sender = eke1.get("from")
     if not sender: raise Exception("From is undefiend")
-    passwordKey = util.hash_password(tempW, localName, sender)
+
+    w = storage.getPeerPassword(sender)
+    if not w: raise Exception("User not in network")
+    passwordKey = util.hash_password(w, localName, sender)
     
     # Generate DH key pair
     priv_key, pub_key = util.genDHKeyPair()
@@ -202,7 +190,7 @@ def establishFirstConnection(eke1, sock):
 
     # await and recieve eke3
     eke3 = {}       
-    eke3 = util.TCP_Reciever(client_sock)
+    eke3 = util.TCP_Reciever(sock)
     print(eke3)
     if eke3["type"] != "EKE_3": raise Exception("Expected EKE_3")
     if eke3["from"] != sender: raise Exception("Expected different EKE_3 sender")

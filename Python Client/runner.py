@@ -69,9 +69,7 @@ def connect(peer: server.peer):
     print("peer: ")
     print(peer)
     client_sock = start_client(peer.ip, peer.port)
-    if client_sock == None: return 
-    
-    print("peer private key: " + peer.private_key)
+    if client_sock == None: return
 
     peer_RSA_pub = storage.getPeerPubRSA(peer.name)
 
@@ -120,12 +118,12 @@ def connect(peer: server.peer):
 
 
 # Runs EKE Session establishment, confirms peer private_key, returns Session key K
-def establishFirstConnection(peer: server.peer, client_sock):
-    tempW = "JacobLiam" #TODO Derive pass other way   
-    passwordKey = util.hash_password(tempW, server.localName, peer.name)
+def establishFirstConnection(peer: server.peer, client_sock):    
+    w = storage.getPeerPassword(peer.name)
+    if not w: raise Exception("User not in network") 
+    passwordKey = util.hash_password(w, server.localName, peer.name)
     
     print("Pass hashed")
-    util.bytesToB64(passwordKey)
 
     priv_key, pub_key = util.genDHKeyPair()
     pub_key_bytes = pub_key.to_bytes((pub_key.bit_length() + 7) // 8, byteorder='big')
@@ -149,7 +147,6 @@ def establishFirstConnection(peer: server.peer, client_sock):
     shared_key = models.getEncryptedProp(eke2, "c2", passwordKey)
     K = util.deriveK(shared_key, priv_key)
 
-    print("K:" + str(K_int))
     challenge_b = models.getEncryptedProp(eke2, "c3", K)
 
     challenge_a = os.urandom(16)
@@ -175,12 +172,11 @@ def establishFirstConnection(peer: server.peer, client_sock):
     if challenge_a != recieved_challenge_a: raise Exception("Key Establishment challenge failed")
     
     peer_pub_RSA = c5[16:]
-    storage.addPeerPubRSA(peer.name, peer_pub_RSA)  
+    storage.addPeerPubRSA(peer.name, peer_pub_RSA)
 
     return K
 
 def establishNthConnection(peer: server.peer, peer_RSA_pub: bytes, client_sock):
-
     # Generate DH key pair
     priv_key, pub_key = util.genDHKeyPair()
     pub_key_bytes = pub_key.to_bytes((pub_key.bit_length() + 7) // 8, byteorder='big')
@@ -238,6 +234,9 @@ def runner():
     mDNS = threading.Thread(target=server.advertise_Service, daemon=True)
     reciever.start()
     mDNS.start()
+
+    # Load RSA values
+    storage.loadRSA()
 
     while True:
         print("peers in network")

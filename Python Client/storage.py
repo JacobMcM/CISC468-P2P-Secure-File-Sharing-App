@@ -9,44 +9,57 @@ DATA_PATH = "network.json"
 public_keys = {}
 fileList = {}
 
-
 PASS_PATH = "passwords.json"
 passwords = {
     "General_access_HASH" : "", #TODO set before use, encode RSA_Private and files with pass matching hash
-    "RSA_Private" : "",
-    "RSA_Public" : "",
     # other values are [peername]:[peer_RSA_public], representing the public keys we know
+    "Liam-PC": "JacobLiam",
+    "Cam": "CamJacob",
+    "Cam-test1": "CamJacob"
 }
 
-def loadPass():
+def getPeerPassword(name):
     global passwords
-    if not os.path.exists(PASS_PATH):
-        return
-    with open(PASS_PATH) as f:
-        passwords = json.load(f)
+    # TODO decrypt this info
+    return passwords.get(name)
 
-def savePass():
+
+RSA_PASS_PATH = "RSAPasswords.json"
+RSAPasswords = {}
+
+def loadRSA():
+    global RSAPasswords
+    if not os.path.exists(RSA_PASS_PATH):
+        return
+    with open(RSA_PASS_PATH) as f:
+        RSAPasswords = json.load(f)
+
+def saveRSA():
     global public_keys, fileList
-    with open(PASS_PATH, "w") as f:
-        json.dump(passwords, f, indent=4)
+    with open(RSA_PASS_PATH, "w") as f:
+        json.dump(RSAPasswords, f, indent=4)
 
 def getPubRSA():
-    return util.b64ToBytes(passwords["RSA_Public"])
+    global RSAPasswords
+    return util.b64ToBytes(RSAPasswords["RSA_Public"])
 
 def getPrivRSA():
-    return util.b64ToBytes(passwords["RSA_Private"])
+    global RSAPasswords
+    return util.b64ToBytes(RSAPasswords["RSA_Private"])
 
 def addPeerPubRSA(name, RSA_bytes):
-    passwords[name] = util.bytesToB64(RSA_bytes)
-    savePass()
+    global RSAPasswords
+    RSAPasswords[name] = util.bytesToB64(RSA_bytes)
+    saveRSA()
 
 def getPeerPubRSA(name):
-    peerRSA = passwords.get(name)
+    global RSAPasswords
+    peerRSA = RSAPasswords.get(name)
     if peerRSA == None or peerRSA == "": return None
     return util.b64ToBytes(peerRSA)
 
 def genRSA():
-    global passwords
+    global RSAPasswords
     # -- gen key ---
     private_key = rsa.generate_private_key(
         public_exponent=65537,
@@ -67,9 +80,10 @@ def genRSA():
     # TODO RSA private should be encrypted
 
     # --- save as converted b64 string
-    passwords["RSA_Private"] = util.bytesToB64(private_bytes)
-    passwords["RSA_Public"] = util.bytesToB64(public_bytes)
-    savePass()
+    RSAPasswords["RSA_Private"] = util.bytesToB64(private_bytes)
+    RSAPasswords["RSA_Public"] = util.bytesToB64(public_bytes)
+    print(RSAPasswords)
+    saveRSA()
 
 
 def load():
