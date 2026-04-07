@@ -54,7 +54,6 @@ import storage
 def start_client(target_host, target_port):
     print("start_client", target_host, target_port)
     client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    print("got_sock")
     try:
         client_sock.connect((target_host, target_port))
     except Exception as e:
@@ -66,8 +65,6 @@ def start_client(target_host, target_port):
 
 
 def connect(peer: server.peer):
-    print("peer: ")
-    print(peer)
     client_sock = start_client(peer.ip, peer.port)
     if client_sock == None: return
 
@@ -122,25 +119,19 @@ def establishFirstConnection(peer: server.peer, client_sock):
     w = storage.getPeerPassword(peer.name)
     if not w: raise Exception("User not in network") 
     passwordKey = util.hash_password(w, server.localName, peer.name)
-    
-    print("Pass hashed")
 
     priv_key, pub_key = util.genDHKeyPair()
     pub_key_bytes = pub_key.to_bytes((pub_key.bit_length() + 7) // 8, byteorder='big')
 
-    print("plaintext generated")
-
     # --- Encrypt ---
     c1 = util.encryptAES(pub_key_bytes, passwordKey)
 
-    eke1 = models.buildEKE1(server.localName, c1)    
-    print("eke1: " + eke1)
+    eke1 = models.buildEKE1(server.localName, c1)
 
     util.TCP_Sender(client_sock, eke1.encode())
 
     eke2 = {}       
     eke2 = util.TCP_Reciever(client_sock)
-    print(eke2)
     if eke2.get("type") != "EKE_2": raise Exception("Expected EKE_2")
     if eke2.get("from") != peer.name: raise Exception("Expected different EKE_2 sender")
 
@@ -155,14 +146,12 @@ def establishFirstConnection(peer: server.peer, client_sock):
 
     c4 = util.encryptAES(challenge_ab, K)
 
-    eke3 = models.buildEKE3(server.localName, c4)    
-    print("eke3: " + eke3)
+    eke3 = models.buildEKE3(server.localName, c4) 
 
     util.TCP_Sender(client_sock, eke3.encode())
 
     eke4 = {}       
     eke4 = util.TCP_Reciever(client_sock)
-    print(eke4)
 
     if eke4.get("type") != "EKE_4": raise Exception("Expected EKE_4")
     if eke4.get("from")!= peer.name: raise Exception("Expected different EKE_4 sender")
@@ -182,14 +171,12 @@ def establishNthConnection(peer: server.peer, peer_RSA_pub: bytes, client_sock):
     pub_key_bytes = pub_key.to_bytes((pub_key.bit_length() + 7) // 8, byteorder='big')
 
     # build & send sts1
-    sts1 = models.buildSTS1(server.localName, pub_key_bytes)    
-    print("sts1: " + sts1)
+    sts1 = models.buildSTS1(server.localName, pub_key_bytes)
     util.TCP_Sender(client_sock, sts1.encode())
 
     # await and recieve sts2
     sts2 = {}
     sts2 = util.TCP_Reciever(client_sock)
-    print(sts2)
     if sts2.get("type") != "STS_2": raise Exception("Expected STS_2")
     if sts2.get("from") != peer.name: raise Exception("Expected different STS_2 sender")
     

@@ -118,8 +118,6 @@ def hash_password(password, fromUser, toUser, iterations=600000):
     combined = fromUser + ":" + toUser
     salt_hash = hashlib.sha256(combined.encode("utf-8")).digest()
     salt = salt_hash[:16]  # first 16 bytes, matching Go
-    print("salt:")
-    print(salt)
     return hashlib.pbkdf2_hmac(
         "sha256", password.encode("utf-8"), salt, iterations
     )

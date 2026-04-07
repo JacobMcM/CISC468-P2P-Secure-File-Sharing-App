@@ -165,7 +165,6 @@ def establishFirstConnection(eke1, sock):
     # await and recieve eke3
     eke3 = {}       
     eke3 = util.TCP_Reciever(sock)
-    print(eke3)
     if eke3["type"] != "EKE_3": raise Exception("Expected EKE_3")
     if eke3["from"] != sender: raise Exception("Expected different EKE_3 sender")
 
@@ -225,7 +224,6 @@ def establishNthConnection(sts1, sock):
     # await and recieve sts3
     sts3 = {}
     sts3 = util.TCP_Reciever(sock)
-    print(sts3)
     if sts3.get("type") != "STS_3": raise Exception("Expected STS_3")
     if sts3.get("from") != peer.name: raise Exception("Expected different STS_3 sender")
 

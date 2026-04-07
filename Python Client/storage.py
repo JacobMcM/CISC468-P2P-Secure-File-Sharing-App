@@ -82,7 +82,6 @@ def genRSA():
     # --- save as converted b64 string
     RSAPasswords["RSA_Private"] = util.bytesToB64(private_bytes)
     RSAPasswords["RSA_Public"] = util.bytesToB64(public_bytes)
-    print(RSAPasswords)
     saveRSA()
 
 
