@@ -1,12 +1,8 @@
 import socket
-import threading
 from zeroconf import ServiceBrowser, ServiceInfo, ServiceListener, Zeroconf, ZeroconfServiceTypes
 import os
 from dotenv import load_dotenv
-import json
 from dataclasses import dataclass
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives import serialization
 import util
 import models
 import storage
@@ -27,28 +23,6 @@ class peer:
     name: str
     ip: str
     port: str
-
-@dataclass
-class file:
-    name: str
-
-@dataclass
-class Request:
-    action: str        # e.g. "GET_USER", "DELETE_ITEM"
-    payload: dict      # action-specific data
-
-@dataclass  
-class Response:
-    success: bool
-    data: dict
-    error: str | None = None
-
-def serialize(obj) -> bytes:
-    return json.dumps(obj.__dict__).encode()
-
-def deserialize_request(raw: bytes) -> Request:
-    d = json.loads(raw.decode())
-    return Request(**d)
 
 # -------------------------------
 # Dns Part

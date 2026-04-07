@@ -1,7 +1,5 @@
 # models.py
-from dataclasses import dataclass, field, asdict
 import json
-import base64
 import util
 
 # --- DH-EKE messages ---
