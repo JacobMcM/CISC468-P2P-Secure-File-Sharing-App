@@ -70,7 +70,6 @@ func handleConnection(conn net.Conn) error {
 		secureSession, err := auth.RunServerSideDhEKE(framed, parsed, w, "Liam-PC"); if err != nil {
 			return err
 		}
-		fmt.Printf("Success connecting to: %s\n", secureSession.PeerName)
 		go RunSecureServerSession(secureSession)
 	case protocol.STS_1:
 		fmt.Printf("\n\n\nSTS Received\n\n\n")
@@ -81,7 +80,6 @@ func handleConnection(conn net.Conn) error {
 		secureSession, err := auth.RunServerSideSTS(framed, parsed, "Liam-PC"); if err != nil {
 			return err
 		}
-		fmt.Printf("Success connecting to: %s\n", secureSession.PeerName)
 		go RunSecureServerSession(secureSession)
 
 	}

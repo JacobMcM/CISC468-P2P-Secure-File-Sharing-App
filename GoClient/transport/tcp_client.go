@@ -34,13 +34,11 @@ func ConnectToPeer(peer *discovery.Peer, selfName, password string) (*session.Se
 			return nil, err
 		}
 	} else {
-		fmt.Print("\n\n\nRUNNING STS!!!!!!!!!!!!!\n\n\n")
 		secureSession, err = auth.RunClientSideSTS(framed, selfName, peer.Name); if err != nil {
 			return nil, err
 		}
 	}
 
-	fmt.Printf("Success connecting to: %s\n", peer.Name)
 	return secureSession, nil
 }
 
@@ -132,7 +130,7 @@ func RunSecureClientSession(session *session.SecureSession) {
 					originalOwner = fileTransferMessage.From
 				}
 
-				fmt.Printf("Original owner: %s", originalOwner)
+				fmt.Printf("Original owner: %s\n", originalOwner)
 
 				// perform sig verification
 				peerPubKeys, err := discovery.LoadPeerKeys("keys/peer_pub_keys.json"); if err != nil {
@@ -141,14 +139,14 @@ func RunSecureClientSession(session *session.SecureSession) {
 				}
 
 				correspondingPubKey := peerPubKeys[originalOwner]
-				fmt.Printf("Verifying signature using %s's public key", originalOwner)
+				fmt.Printf("Verifying signature using %s's public key\n", originalOwner)
 
 				err = crypto.RsaPssVerify(correspondingPubKey, fileTransferMessage.Data, fileTransferMessage.Signature); if err != nil {
 					fmt.Println("[Security] File signature verification failed! File will be discarded.")
 					continue
 				}
 
-				fmt.Println("VERIFICATION SUCCESS")
+				fmt.Println("VERIFICATION SUCCESS\n")
 				path := "files/" + fileTransferMessage.Filename
 				err = os.WriteFile(path, fileTransferMessage.Data, 0644)
 				if err != nil {

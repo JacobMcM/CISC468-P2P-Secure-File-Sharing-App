@@ -116,7 +116,6 @@ func DeriveEKEKey(password, peerA, peerB string) ([]byte) {
     }
 
     combined := nameA + ":" + nameB
-	fmt.Printf("COMBINED: %s\n\n\n", combined)
     saltHash := sha256.Sum256([]byte(combined))
     salt := saltHash[:16]
 
@@ -251,7 +250,6 @@ func (s *StsState) BuildSTSMessageValues(peerDhValue []byte) ([]byte, []byte, er
 		return nil, nil, err
 	}
 
-	fmt.Printf("SIG: %s", signature)
 
 	if s.K == nil {
 		return nil, nil, fmt.Errorf("Attempted to build STS Message 2 without K set")
@@ -345,10 +343,8 @@ func (p *PakeState) GenerateRA() {
 func (p *PakeState) DeriveK(peerDhValue []byte) {
 	peerDhBigInt, _ := BytesToBigInt(peerDhValue)
 	myExp := p.b
-	fmt.Printf("MY EXP: %s", myExp)
 	if p.b == nil {
 	    myExp = p.a
-		fmt.Printf("MY EXP: %s", myExp)
 	}
 	combinedDh := new(big.Int).Exp(peerDhBigInt, myExp, dhP).Bytes()
 	k := sha256.Sum256(combinedDh)
@@ -365,7 +361,6 @@ func (p *PakeState) BuildC1() []byte {
 func (p *PakeState) BuildC2_C3() ([]byte, []byte) {
 	P2 := BigIntToBytes(new(big.Int).Exp(dhAlpha, p.b, dhP))
 	C2, _ := p.EncryptW(P2)
-	fmt.Printf("\n\n\n\nSENT rB: %s\n\n\n\n", p.rB)
 	C3, _ := p.EncryptK(p.rB)
 
 	return C2, C3
@@ -404,8 +399,6 @@ func (p *PakeState) BuildC4(rB []byte) ([]byte, error) {
 	myPEMPubKey, _ := publicKeyToPEM(*p.myPubKey)
 
 	P4 = append(P4, []byte(myPEMPubKey)...)
-	fmt.Println("HERERERERERE")
-	fmt.Println(string(myPEMPubKey))
 	C4, _ := p.EncryptK(P4)
 	return C4, nil
 }
