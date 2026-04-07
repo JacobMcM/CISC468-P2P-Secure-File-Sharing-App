@@ -72,6 +72,7 @@ func RunServerSideSTS(conn *session.FramedConn, init_message protocol.STS1Messag
 		return nil, err
 	}
 
+
 	conn.Send(stsMessage2)
 
 	// Receive C2 = enc_w(alpha^b), C3 = enc_K(r_b)

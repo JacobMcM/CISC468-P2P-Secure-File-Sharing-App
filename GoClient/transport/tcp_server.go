@@ -63,11 +63,13 @@ func handleConnection(conn net.Conn) error {
 		}
 
 		w := "JacobLiam"
+		if parsed.From != "JacobPC" {
+			w = "CamLiam"
+		}
 
 		secureSession, err := auth.RunServerSideDhEKE(framed, parsed, w, "Liam-PC"); if err != nil {
 			return err
 		}
-		fmt.Printf("Success connecting to: %s\n", secureSession.PeerName)
 		go RunSecureServerSession(secureSession)
 	case protocol.STS_1:
 		fmt.Printf("\n\n\nSTS Received\n\n\n")
@@ -78,7 +80,6 @@ func handleConnection(conn net.Conn) error {
 		secureSession, err := auth.RunServerSideSTS(framed, parsed, "Liam-PC"); if err != nil {
 			return err
 		}
-		fmt.Printf("Success connecting to: %s\n", secureSession.PeerName)
 		go RunSecureServerSession(secureSession)
 
 	}
@@ -177,7 +178,7 @@ func RunSecureServerSession(session *session.SecureSession) {
 				correspondingPubKey := peerPubKeys[originalOwner]
 				fmt.Printf("Verifying signature using %s's public key", originalOwner)
 
-				err = crypto.RsaPssVerify(correspondingPubKey, fileTransferMessage.Data, string(fileTransferMessage.Signature)); if err != nil {
+				err = crypto.RsaPssVerify(correspondingPubKey, fileTransferMessage.Data, fileTransferMessage.Signature); if err != nil {
 					fmt.Println("[Security] File signature verification failed! File will be discarded.")
 					continue
 				}

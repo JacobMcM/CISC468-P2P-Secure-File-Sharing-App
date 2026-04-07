@@ -66,7 +66,6 @@ func StartPeerDiscovery(ctx context.Context, selfName string) {
 	entries := make(chan *zeroconf.ServiceEntry)
 	go func(results <-chan *zeroconf.ServiceEntry) {
 		for entry := range results {
-			log.Printf("Discovered: %s at %s:%d\n", entry.Instance, entry.AddrIPv4, entry.Port)
 
 			// if entry.Instance == selfName {
 			// 	continue

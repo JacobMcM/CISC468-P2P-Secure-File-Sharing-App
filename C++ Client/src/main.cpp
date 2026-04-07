@@ -375,8 +375,8 @@ int main(int argc, char* argv[]) {
                         std::string myDHPubRaw = exportDHPublicKeyRaw(myDH);
                         std::string peerDHPubRaw = base64Decode(peerDHPubB64);
 
-                        // Derive session key K
-                        std::string K = deriveSessionKey(myDH, peerDHPubB64);
+                        // Derive session key K from raw DH bytes
+                        std::string K = deriveSessionKeyFromRaw(myDH, peerDHPubRaw);
                         if (K.empty()) { freeDHKeyPair(myDH); break; }
 
                         // Sign: sig_Bob(myDH || peerDH) over RAW dh bytes
@@ -630,7 +630,7 @@ int main(int argc, char* argv[]) {
 
                     std::string peerDHPubB64 = resp["dh_public_key"].get<std::string>();
                     std::string peerDHPubRaw = base64Decode(peerDHPubB64);
-                    std::string K = deriveSessionKey(myDH, peerDHPubB64);
+                    std::string K = deriveSessionKeyFromRaw(myDH, peerDHPubRaw);
 
                     // Verify peer's signature over RAW bytes: peerDH || myDH
                     std::string peerSig = aesGcmDecrypt(K, resp["encrypted_signature"].get<std::string>());

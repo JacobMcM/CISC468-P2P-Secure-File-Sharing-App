@@ -82,17 +82,32 @@ std::string exportPrivateKeyPEM(const KeyPair& kp) {
     return pem;
 }
 
-EVP_PKEY* importPublicKeyPEM(const std::string& pem) {
-    BIO* bio = BIO_new_mem_buf(pem.c_str(), pem.size());
-    if (!bio) return nullptr;
-
-    EVP_PKEY* pkey = PEM_read_bio_PUBKEY(bio, nullptr, nullptr, nullptr);
-    BIO_free(bio);
-
-    if (!pkey) {
-        std::cerr << "Failed to parse public key PEM" << std::endl;
+EVP_PKEY* importPublicKeyPEM(const std::string& data) {
+    // 1) Try PEM (-----BEGIN PUBLIC KEY-----)
+    BIO* bio = BIO_new_mem_buf(data.c_str(), data.size());
+    if (bio) {
+        EVP_PKEY* pkey = PEM_read_bio_PUBKEY(bio, nullptr, nullptr, nullptr);
+        BIO_free(bio);
+        if (pkey) return pkey;
     }
-    return pkey;
+
+    // 2) Try base64-encoded DER PKIX (Go client format)
+    std::string der = base64Decode(data);
+    if (!der.empty()) {
+        const unsigned char* p = reinterpret_cast<const unsigned char*>(der.data());
+        EVP_PKEY* pkey = d2i_PUBKEY(nullptr, &p, der.size());
+        if (pkey) return pkey;
+    }
+
+    // 3) Try raw DER PKIX
+    {
+        const unsigned char* p = reinterpret_cast<const unsigned char*>(data.data());
+        EVP_PKEY* pkey = d2i_PUBKEY(nullptr, &p, data.size());
+        if (pkey) return pkey;
+    }
+
+    std::cerr << "Failed to parse public key (tried PEM, base64-DER, raw DER)" << std::endl;
+    return nullptr;
 }
 
 bool saveKeysToDisk(const KeyPair& kp, const std::string& directory) {

@@ -28,6 +28,31 @@ func NewFileInfo(name, originalOwner string, size int64, hash, sig []byte) *File
 	}
 }
 
+func AddFileFromDir(dirPath, filename, fileListPath string, privKey *rsa.PrivateKey, ownerName string) error {
+	filePath := filepath.Join(dirPath, filename)
+
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to read file")
+	}
+
+	err = os.MkdirAll("files", 0755); if err != nil {
+		return fmt.Errorf("failed to create files dir")
+	}
+
+	destPath := filepath.Join("files", filename)
+	err = os.WriteFile(destPath, data, 0644); if err != nil {
+		return fmt.Errorf("failed to copy file")
+	}
+
+	fileInfo, err := NewSelfOwnedFileInfo(filePath, privKey, ownerName)
+	if err != nil {
+		return fmt.Errorf("failed to create file info")
+	}
+
+	return AddToFileList(fileListPath, fileInfo)
+}
+
 func SaveFileList(path string, files []*FileInfo) error {
 	data, err := json.MarshalIndent(files, "", "  ")
 	if err != nil {
@@ -105,5 +130,10 @@ func InitFileList(path string, privateKey *rsa.PrivateKey, ownerName string) err
     }
 
     return SaveFileList(filepath.Join(path, "file_list.json"), files)
+}
+
+func FileExists(path string) bool {
+    _, err := os.Stat(path)
+    return !os.IsNotExist(err)
 }
 

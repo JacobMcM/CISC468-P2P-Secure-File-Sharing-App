@@ -11,7 +11,9 @@ import (
 	"os"
 	"strings"
 
+	"GoClient/crypto"
 	"GoClient/discovery"
+	file "GoClient/file_manager"
 	"GoClient/transport"
 )
 
@@ -20,6 +22,15 @@ import (
 func main() {
 	const tcpPort = 5011
 	const selfName = "Liam-PC"
+
+    if !file.FileExists("keys/private.pem") || !file.FileExists("keys/public.pem") {
+        GenerateAndSaveRSAKeys()
+    }
+
+    if !file.FileExists("files/file_list.json") {
+        myPrivKey, _ := crypto.LoadPrivateKey("keys/private.pem")
+        file.InitFileList("files", myPrivKey, selfName)
+    }
 
 	// Start TCP server
 	go transport.StartTCPServer(tcpPort)

@@ -5,3 +5,5 @@ keys
 __pycache__/
 *.pyc
 *.pyo
+keys/private.pem
+keys/public.pem
